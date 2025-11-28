@@ -16,7 +16,7 @@ class MLPMappingNetwork(nn.Module):
 
     def __init__(
         self,
-        prefix_length: int,
+        prefix_length: int = 10,
         clip_dim: int = 512,
         gpt_dim: int = 768,
         bias: bool = True,
