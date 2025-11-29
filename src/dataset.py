@@ -3,7 +3,9 @@ from dataclasses import dataclass
 
 import torch
 from torch.utils.data import Dataset
-from transformers import GPT2Tokenizer
+from transformers import PreTrainedTokenizer
+
+from src.utils import load_gpt2_tokenizer
 
 
 @dataclass
@@ -34,7 +36,7 @@ class CocoDataset(Dataset):
         self,
         embeddings_path: str,
         annotations_path: str,
-        tokenizer: GPT2Tokenizer,
+        tokenizer: PreTrainedTokenizer = load_gpt2_tokenizer(),
         max_length: int = 50,
         normalize_embeddings: bool = False,
     ):
@@ -42,7 +44,7 @@ class CocoDataset(Dataset):
         Args:
             embeddings_path (str): Path to the .pt file containing image filenames and pre-computed CLIP embeddings.
             annotations_path (str): Path to captions_train2014.json.
-            tokenizer (GPT2Tokenizer): Tokenizer for processing captions.
+            tokenizer (PreTrainedTokenizer): Tokenizer for processing captions. Defaults to GPT-2 tokenizer.
             max_length (int, optional): Maximum length for tokenized captions. Defaults to 50.
             normalize_embeddings (bool, optional): If True, re-normalizes embeddings (usually not needed if already done).
                 Defaults to False.
