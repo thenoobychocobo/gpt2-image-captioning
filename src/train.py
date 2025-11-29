@@ -53,11 +53,12 @@ def train(
             optimizer.zero_grad()
             
             # Forward pass, model tries to predict the next token given previous tokens and image embeddings
+            # We do not have to shift the token_ids here because the model's forward method handles that internally
             outputs = model(
-                caption_token_ids=token_ids[:, :-1],
+                caption_token_ids=token_ids,
                 clip_image_embeddings=clip_embeddings,
-                attention_mask=attention_mask[:, :-1],
-                labels=token_ids[:, 1:]
+                attention_mask=attention_mask,
+                labels=token_ids
             )
             
             loss = outputs.loss

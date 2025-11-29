@@ -262,6 +262,7 @@ class ClipCapModel(nn.Module):
             attention_mask = torch.cat((dummy_attention_mask, attention_mask), dim=1)
 
         # GPT forward pass
+        # Clear implementation can be found here: https://huggingface.co/transformers/v3.0.2/_modules/transformers/modeling_gpt2.html#GPT2LMHeadModel
         return self.gpt.forward(
             inputs_embeds=input_tokens,
             labels=labels,  # All labels set to -100 are ignored for loss computation
