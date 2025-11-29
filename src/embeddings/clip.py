@@ -1,10 +1,10 @@
-import os
-
 import torch
 from PIL import Image
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import AutoProcessor, CLIPModel, CLIPProcessor
+
+from src.utils import ImageDirectoryDataset
 
 
 def load_clip_model(
@@ -76,45 +76,6 @@ def extract_clip_embedding_from_image(
         )  # Remove batch dimension; shape (embedding_dim,)
 
 
-class ImageDirectoryDataset(Dataset):
-    """
-    Simple Dataset to load images from a flat directory.
-    This is a helper dataset for efficient batch processing.
-    """
-
-    def __init__(self, directory: str) -> None:
-        """
-        Args:
-            directory (str): Path to the folder containing images.
-        """
-        self.directory = directory
-        # Filter for valid image extensions
-        self.valid_exts = {".jpg", ".jpeg", ".png", ".webp"}
-        self.filenames = [
-            f
-            for f in os.listdir(directory)
-            if os.path.splitext(f)[1].lower() in self.valid_exts
-        ]
-
-    def __len__(self) -> int:
-        return len(self.filenames)
-
-    def __getitem__(self, idx: int) -> tuple[str, Image.Image]:
-        """
-        Args:
-            idx (int): Index of the image to retrieve.
-
-        Returns:
-            tuple[str, Image.Image]: Filename and corresponding PIL Image object.
-        """
-        filename = self.filenames[idx]
-        path = os.path.join(self.directory, filename)
-
-        # Convert to RGB to ensure 3 channels (handles Greyscale/RGBA)
-        image = Image.open(path).convert("RGB")
-        return filename, image
-
-
 def extract_clip_embeddings(
     image_dir: str,
     output_path: str,
@@ -147,7 +108,11 @@ def extract_clip_embeddings(
     # Setup Data Loading
     dataset = ImageDirectoryDataset(image_dir)
     dataloader = DataLoader(
-        dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers
+        dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        collate_fn=ImageDirectoryDataset.collate_fn,
     )
 
     all_embeddings: list[torch.Tensor] = []
