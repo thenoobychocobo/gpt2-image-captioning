@@ -16,7 +16,7 @@ class CaptionData:
 
     Attributes:
         image_id (int): The id of the caption's associated image.
-        embedding_index (int): Index to retrieve the CLIP embedding of the caption's associated image.
+        embedding_index (int): Index to retrieve the image embedding of the caption's associated image.
         caption_text (str): The caption text.
     """
 
@@ -42,7 +42,7 @@ class CocoDataset(Dataset):
     ):
         """
         Args:
-            embeddings_path (str): Path to the .pt file containing image filenames and pre-computed CLIP embeddings.
+            embeddings_path (str): Path to the .pt file containing image filenames and pre-computed image embeddings.
             annotations_path (str): Path to captions_train2014.json.
             tokenizer (PreTrainedTokenizer): Tokenizer for processing captions. Defaults to GPT-2 tokenizer.
             max_length (int, optional): Maximum length for tokenized captions. Defaults to 50.
@@ -55,12 +55,12 @@ class CocoDataset(Dataset):
 
         # Load the Pre-Computed Embeddings (.pt file)
         data: dict = torch.load(embeddings_path)
-        self.clip_embeddings: torch.Tensor = data["embeddings"]
+        self.image_embeddings: torch.Tensor = data["embeddings"]
         self.image_filenames: list[str] = data["filenames"]
         # an image with filename at index i in image_filenames
-        # has its corresponding embedding at index i in clip_embeddings
+        # has its corresponding embedding at index i in image_embeddings
 
-        # Map each image ID to its corresponding index in the clip_embeddings tensor
+        # Map each image ID to its corresponding index in the image_embeddings tensor
         self.image_id_to_index: dict[int, int] = {
             self.get_image_id_from_filename(fname): idx
             for idx, fname in enumerate(self.image_filenames)
@@ -118,10 +118,10 @@ class CocoDataset(Dataset):
     def __getitem__(self, idx: int) -> dict:
         caption_data = self.captions[idx]
 
-        # Get CLIP image embedding
-        clip_embedding = self.clip_embeddings[caption_data.embedding_index]
+        # Get image embedding
+        image_embedding = self.image_embeddings[caption_data.embedding_index]
         if self.normalize_embeddings:
-            clip_embedding = clip_embedding / clip_embedding.norm(2, -1)
+            image_embedding = image_embedding / image_embedding.norm(2, -1)
 
         # Tokenize caption text
         encoding = self.tokenizer(
@@ -138,7 +138,7 @@ class CocoDataset(Dataset):
 
         return {
             "token_ids": token_ids,
-            "clip_embedding": clip_embedding,
+            "image_embedding": image_embedding,
             "attention_mask": attention_mask,
             "caption_text": caption_data.caption_text,
             "image_id": caption_data.image_id,

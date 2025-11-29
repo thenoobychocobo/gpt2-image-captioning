@@ -71,7 +71,7 @@ def extract_vit_embedding_from_image(
         # Extract Pooler Output (The [CLS] token representation)
         embeddings = outputs.pooler_output
 
-        # Normalize embedding (L2 Norm) to match CLIP behavior
+        # Normalize embedding (L2 Norm)
         embeddings = embeddings / embeddings.norm(p=2, dim=-1, keepdim=True)
 
         return embeddings.squeeze(0)  # Remove batch dimension; shape (embedding_dim,)

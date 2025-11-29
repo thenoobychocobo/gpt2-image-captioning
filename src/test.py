@@ -5,11 +5,11 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from src.dataset import CocoDataset
-from src.models import ClipCapModel
+from src.models import ImageCaptioningModel
 
 
 def generate_test_caption_predictions(
-    model: ClipCapModel,
+    model: ImageCaptioningModel,
     test_dataset: CocoDataset,
     batch_size: int,
     num_workers: int = 4,
@@ -20,10 +20,10 @@ def generate_test_caption_predictions(
     device: torch.device | None = None,
 ) -> list[dict]:
     """
-    Uses the provided `ClipCapModel` to generate captions for all images in the test dataset.
+    Uses the provided `ImageCaptioningModel` to generate captions for all images in the test dataset.
 
     Args:
-        model (ClipCapModel): The trained captioning model.
+        model (ImageCaptioningModel): The trained captioning model.
         test_dataset (CocoDataset): The test dataset containing images and metadata.
         batch_size (int): The batch size for generating captions.
         num_workers (int, optional): The number of CPU threads for data loading. Should be 0 on Windows. Defaults to 4.
@@ -53,13 +53,13 @@ def generate_test_caption_predictions(
     with torch.no_grad():
         for batch in tqdm(dataloader, desc="Generating Captions"):
             # Unpack batch and move to device
-            # We only need image_ids and clip_embeddings for generation
+            # We only need image_ids and image_embeddings for generation
             image_ids: torch.Tensor = batch["image_id"]  # Can keep on CPU
-            clip_embeddings: torch.Tensor = batch["clip_embedding"].to(device)
+            image_embeddings: torch.Tensor = batch["image_embedding"].to(device)
 
             # Generate captions
             generated_ids = model.generate(
-                clip_image_embeddings=clip_embeddings,
+                image_embeddings=image_embeddings,
                 max_length=max_length,
                 top_p=top_p,
                 temperature=temperature,

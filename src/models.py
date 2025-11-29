@@ -7,17 +7,17 @@ from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions
 
 class MLPMappingNetwork(nn.Module):
     """
-    Maps a CLIP image embedding vector to a sequence of prefix tokens (learned vector representations)
+    Maps an image embedding vector to a sequence of prefix tokens (learned vector representations)
     using a simple Multi-Layer Perceptron (MLP).
 
-    The prefix tokens capture image information from the CLIP embedding vector and are used as
+    The prefix tokens capture image information from the image embedding vector and are used as
     virtual tokens to condition GPT-2 decoding for image-captioning.
     """
 
     def __init__(
         self,
         prefix_length: int = 10,
-        clip_dim: int = 512,
+        embed_dim: int = 512,
         gpt_dim: int = 768,
         bias: bool = True,
         activation: nn.Module = nn.Tanh(),
@@ -25,7 +25,7 @@ class MLPMappingNetwork(nn.Module):
         """
         Args:
             prefix_length (int): The number of prefix tokens to generate.
-            clip_dim (int): The dimensionality of the CLIP embedding vector. Defaults to 512.
+            embed_dim (int): The dimensionality of the image embedding vector. Defaults to 512.
             gpt_dim (int): The dimensionality of each GPT-2 embedding space. Since the prefix tokens are meant
                 to be passed into GPT-2 as virtual tokens, this will be the dimensionality of each prefix token.
                 Defaults to 768.
@@ -34,7 +34,7 @@ class MLPMappingNetwork(nn.Module):
         """
         super().__init__()
         self.prefix_length = prefix_length
-        self.clip_dim = clip_dim
+        self.embed_dim = embed_dim
         self.gpt_dim = gpt_dim
 
         # Output is a flat vector that will later be split into prefix_length number of gpt_dim vectors (tokens)
@@ -44,22 +44,22 @@ class MLPMappingNetwork(nn.Module):
         hidden_dim = output_dim // 2
 
         self.model = nn.Sequential(
-            nn.Linear(clip_dim, hidden_dim, bias=bias),
+            nn.Linear(embed_dim, hidden_dim, bias=bias),
             activation,
             nn.Linear(hidden_dim, output_dim, bias=bias),
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
-        Returns a sequence of prefix tokens derived from the input CLIP embedding vectors.
+        Returns a sequence of prefix tokens derived from the input image embedding vectors.
 
         Args:
-            x (torch.Tensor): CLIP embedding vectors of shape (batch_size, clip_dim)
+            x (torch.Tensor): Image embedding vectors of shape (batch_size, embed_dim)
 
         Returns:
             torch.Tensor: Sequence of prefix tokens of shape (batch_size, prefix_length, gpt_dim)
         """
-        # x shape: (batch_size, clip_dim)
+        # x shape: (batch_size, embed_dim)
 
         # Project to (batch_size, prefix_length * gpt_dim)
         x = self.model(x)
@@ -70,50 +70,50 @@ class MLPMappingNetwork(nn.Module):
 
 class TransformerMappingNetwork(nn.Module):
     """
-    Maps a CLIP image embedding vector to a sequence of prefix tokens (learned vector representations)
+    Maps an image embedding vector to a sequence of prefix tokens (learned vector representations)
     using a Transformer Encoder (bidirectional self-attention).
 
     Process:
-    1. The CLIP embedding vector is projected to a sequence of 'clip_length' vectors (which we will refer to as the sequence of CLIP tokens).
+    1. The image embedding vector is projected to a sequence of 'hidden_length' vectors (which we will refer to as the sequence of image tokens).
     2. There is also a learnable prefix, composed of 'prefix_length' learned constant vectors.
-    3. The CLIP token sequence and the learnable prefix are concatenated together and then passed through a Transformer Encoder.
+    3. The image token sequence and the learnable prefix are concatenated together and then passed through a Transformer Encoder.
     4. After encoding, we extract only the learnable prefix part (the last 'prefix_length' tokens) to be used as input to GPT-2 (virtual tokens).
 
     Each vector in the prefix is a learned constant vector, that is optimized during training. We refer to each as a prefix token.
     The prefix tokens are akin to the `[CLS]` token in BERT, but here we have multiple such learned tokens.
-    The idea is that when the prefix tokens are processed together with the CLIP token sequence and attend to each other (bidirectional self-attention),
-    they effectively learn to retrieve meaningful information from the CLIP embedding.
+    The idea is that when the prefix tokens are processed together with the image token sequence and attend to each other (bidirectional self-attention),
+    they effectively learn to retrieve meaningful information from the image embedding.
     The processed prefix tokens (with image information captured post-attention) are then passed to GPT-2 as virtual tokens to condition
     text generation (decoding).
     """
 
     def __init__(
         self,
-        clip_dim: int,
+        embed_dim: int,
         gpt_dim: int,
         prefix_length: int,
-        clip_length: int,
+        hidden_length: int,
         num_layers: int = 8,
     ) -> None:
         """
         Args:
-            clip_dim (int): The dimensionality of the CLIP embedding vector.
+            embed_dim (int): The dimensionality of the image embedding vector.
             gpt_dim (int): The dimensionality of the GPT token embeddings.
             prefix_length (int): The number of prefix tokens to generate.
-            clip_length (int): The number of tokens to project the CLIP embedding vector into.
+            hidden_length (int): The number of tokens to project the image embedding vector into.
             num_layers (int, optional): The number of Transformer encoder layers. Defaults to 8.
         """
         super().__init__()
-        self.clip_dim = clip_dim  # CLIP embedding dimension (e.g., 512)
+        self.embed_dim = embed_dim  # Image embedding dimension (e.g., 512)
         self.gpt_dim = gpt_dim  # GPT token embedding dimension (e.g., 768)
-        self.clip_length = clip_length
+        self.hidden_length = hidden_length
         self.prefix_length = prefix_length
 
-        # Linear layer projects CLIP embedding vector to a sequence of 'clip_length' vectors
-        self.linear = nn.Linear(clip_dim, clip_length * gpt_dim)
+        # Linear layer projects image embedding vector to a sequence of 'hidden_length' vectors
+        self.linear = nn.Linear(embed_dim, hidden_length * gpt_dim)
 
         # Learnable Prefix (learned constant vectors later used as virtual tokens for GPT-2)
-        # These prefix tokens will attend to the image information in the CLIP token sequence via self-attention
+        # These prefix tokens will attend to the image information in the image token sequence via self-attention
         # We want to learn an optimal intialization for these prefix tokens
         self.prefix_const = nn.Parameter(
             torch.randn(prefix_length, gpt_dim), requires_grad=True
@@ -134,43 +134,43 @@ class TransformerMappingNetwork(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Args:
-            x (torch.Tensor): CLIP embedding vectors of shape (batch_size, clip_dim)
+            x (torch.Tensor): Image embedding vectors of shape (batch_size, embed_dim)
 
         Returns:
             torch.Tensor: Sequence of prefix tokens of shape (batch_size, prefix_length, gpt_dim)
         """
-        # x shape: (batch_size, clip_dim)
+        # x shape: (batch_size, embed_dim)
         batch_size = x.shape[0]
 
-        # Project CLIP embedding vector
-        # (batch_size, clip_dim) to (batch_size, clip_length * gpt_dim)
+        # Project image embedding vector
+        # (batch_size, embed_dim) to (batch_size, hidden_length * gpt_dim)
         x = self.linear(x)
 
-        # Split this long vector into a sequence of vectors ("CLIP tokens")
+        # Split this long vector into a sequence of vectors ("image tokens")
         x = x.view(
-            batch_size, self.clip_length, self.gpt_dim
-        )  # (batch_size, clip_length, gpt_dim)
+            batch_size, self.hidden_length, self.gpt_dim
+        )  # (batch_size, hidden_length, gpt_dim)
 
-        # Duplicate the learnable prefix for each input image (CLIP embedding) in the batch
+        # Duplicate the learnable prefix for each input image (image embedding) in the batch
         # (prefix_length, gpt_dim) to (batch_size, prefix_length, gpt_dim)
         prefix = self.prefix_const.unsqueeze(0).expand(batch_size, -1, -1)
 
-        # Concatenate the projected CLIP sequence with the learnable prefix
+        # Concatenate the projected image sequence with the learnable prefix
         inputs = torch.cat(
             (x, prefix), dim=1
-        )  # (batch_size, clip_length + prefix_length, gpt_dim)
+        )  # (batch_size, hidden_length + prefix_length, gpt_dim)
 
         # Pass the entire sequence through the Transformer Encoder
         out = self.transformer(inputs)
 
         # Extract and return only the prefix tokens (the last 'prefix_length' tokens)
-        return out[:, self.clip_length :, :]  # (batch_size, prefix_length, gpt_dim)
+        return out[:, self.hidden_length :, :]  # (batch_size, prefix_length, gpt_dim)
 
 
-class ClipCapModel(nn.Module):
+class ImageCaptioningModel(nn.Module):
     """
-    End-to-end Image Captioning model that takes in a CLIP image embedding and generates an image-caption using GPT-2.
-    Combines a Mapping Network (that maps CLIP embeddings to GPT prefix tokens) and a pretrained GPT-2 model.
+    End-to-end Image Captioning model that takes in an image embedding and generates an image-caption using GPT-2.
+    Combines a Mapping Network (that maps image embeddings to GPT prefix tokens) and a pretrained GPT-2 model.
     """
 
     def __init__(
@@ -181,7 +181,7 @@ class ClipCapModel(nn.Module):
     ) -> None:
         """
         Args:
-            mapping_network (nn.Module): Initialized mapping network that maps CLIP embeddings to GPT prefix tokens.
+            mapping_network (nn.Module): Initialized mapping network that maps image embeddings to GPT prefix tokens.
             prefix_length (int, optional): The number of prefix tokens (should match the mapping network's prefix length).
                 Defaults to 10.
             freeze_gpt_weights (bool, optional): Whether to freeze GPT-2 weights during training. Defaults to True.
@@ -205,7 +205,7 @@ class ClipCapModel(nn.Module):
     def forward(
         self,
         caption_token_ids: torch.Tensor,
-        clip_image_embeddings: torch.Tensor,
+        image_embeddings: torch.Tensor,
         attention_mask: torch.Tensor | None = None,
         labels: torch.Tensor | None = None,
     ) -> tuple | CausalLMOutputWithCrossAttentions:
@@ -217,7 +217,7 @@ class ClipCapModel(nn.Module):
 
         Args:
             caption_token_ids (torch.Tensor): Ground truth caption token IDs of shape (batch_size, caption_length)
-            clip_image_embeddings (torch.Tensor): CLIP image embeddings of shape (batch_size, clip_embedding_dim)
+            image_embeddings (torch.Tensor): Image embeddings of shape (batch_size, embed_dim)
             attention_mask (torch.Tensor | None, optional): Attention mask for the caption tokens of shape (batch_size, caption_length). Defaults to None.
             labels (torch.Tensor | None, optional): Labels for computing loss of shape (batch_size, caption_length). Defaults to None.
 
@@ -228,8 +228,8 @@ class ClipCapModel(nn.Module):
         # Obtain GPT token embeddings for the ground-truth captions
         caption_tokens = self.gpt.transformer.wte(caption_token_ids)
 
-        # Obtain the prefix tokens from the CLIP image embeddings via the mapping network
-        prefix_tokens = self.mapping_network(clip_image_embeddings)
+        # Obtain the prefix tokens from the image embeddings via the mapping network
+        prefix_tokens = self.mapping_network(image_embeddings)
 
         # Concatenate prefix tokens with the ground-truth caption tokens
         input_tokens = torch.cat((prefix_tokens, caption_tokens), dim=1)
@@ -271,17 +271,17 @@ class ClipCapModel(nn.Module):
 
     def generate(
         self,
-        clip_image_embeddings: torch.Tensor,
+        image_embeddings: torch.Tensor,
         max_length: int = 50,
         temperature: float = 1.0,
         top_p: float = 0.9,
         stop_token_id: int = 50256,
     ) -> torch.Tensor:
         """
-        Generate captions autoregressively given CLIP image embeddings.
+        Generate captions autoregressively given image embeddings.
 
         Args:
-            clip_image_embeddings (torch.Tensor): CLIP image embeddings of shape (batch_size, clip_embedding_dim)
+            image_embeddings (torch.Tensor): Image embeddings of shape (batch_size, embed_dim)
             max_length (int, optional): Maximum length of the generated caption. Defaults to 50.
             temperature (float, optional): Sampling temperature for controlling randomness. Defaults to 1.0.
             top_p (float, optional): Nucleus sampling probability threshold. Defaults to 0.9.
@@ -295,13 +295,13 @@ class ClipCapModel(nn.Module):
         self.eval()  # Will recursively set mapping network and GPT to eval mode
 
         # Get device and batch size
-        device = clip_image_embeddings.device
-        batch_size = clip_image_embeddings.shape[0]
+        device = image_embeddings.device
+        batch_size = image_embeddings.shape[0]
 
-        # Process CLIP image embeddings through the mapping network to get prefix tokens
+        # Process image embeddings through the mapping network to get prefix tokens
         with torch.no_grad():
             prefix_tokens = self.mapping_network.forward(
-                clip_image_embeddings
+                image_embeddings
             )  # (batch_size, prefix_length, gpt_dim)
 
         # Initialize input for GPT-2 decoding

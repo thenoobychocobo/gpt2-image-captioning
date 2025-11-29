@@ -6,13 +6,13 @@ from tqdm import tqdm
 from transformers import get_linear_schedule_with_warmup
 
 from src.dataset import CocoDataset
-from src.models import ClipCapModel
+from src.models import ImageCaptioningModel
 from src.utils import save_loss_curves
 
 
 def train(
     train_dataset: CocoDataset,
-    model: ClipCapModel,
+    model: ImageCaptioningModel,
     batch_size: int,
     num_epochs: int,
     num_workers: int = 4,
@@ -23,11 +23,11 @@ def train(
     outputs_dir: str = "checkpoints",
 ) -> None:
     """
-    Trains the `ClipCapModel` on the provided `CocoDataset`.
+    Trains the `ImageCaptioningModel` on the provided `CocoDataset`.
 
     Args:
         train_dataset (CocoDataset): The training dataset.
-        model (ClipCapModel): The model to be trained.
+        model (ImageCaptioningModel): The model to be trained.
         batch_size (int): The batch size for training.
         num_epochs (int): The number of training epochs.
         num_workers (int, optional): The number of CPU threads for data loading. Should be 0 on Windows. Defaults to 4.
@@ -74,7 +74,7 @@ def train(
         for batch_idx, batch in enumerate(progress_bar):
             # Unpack batch and move to device
             token_ids = batch["token_ids"].to(device)
-            clip_embeddings = batch["clip_embedding"].to(device)
+            image_embeddings = batch["image_embedding"].to(device)
             attention_mask = batch["attention_mask"].to(device)
 
             # Clear gradients
@@ -85,7 +85,7 @@ def train(
             # We do not have to shift the token_ids here because the model's forward method handles that internally
             outputs = model.forward(
                 caption_token_ids=token_ids,
-                clip_image_embeddings=clip_embeddings,
+                image_embeddings=image_embeddings,
                 attention_mask=attention_mask,
                 labels=token_ids,
             )
