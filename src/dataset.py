@@ -1,4 +1,6 @@
 import json
+import os
+import random
 from dataclasses import dataclass
 
 import torch
@@ -6,6 +8,74 @@ from torch.utils.data import Dataset
 from transformers import PreTrainedTokenizer
 
 from src.utils import load_gpt2_tokenizer
+
+
+def split_coco_annotations(
+    annotations_path: str, output_dir: str, split_ratio: float = 0.8, seed: int = 42
+) -> None:
+    """
+    Split the COCO annotations JSON file into training and validation sets based on image IDs (not split by captions).
+    When creating a `CocoDataset` instance, use the resulting JSON files (but the same `.pt` embeddings file).
+
+    Args:
+        annotations_path (str): Path to original COCO annotations JSON file.
+        output_dir (str): Directory to save the split JSON files.
+        split_ratio (float, optional): Ratio of training data (e.g., a ratio of 0.8 means 80% training data and 20% validation data).
+            Defaults to 0.8.
+        seed (int, optional): Random seed for reproducibility. Defaults to 42.
+    """
+    with open(annotations_path, "r") as f:
+        coco_data = json.load(f)
+
+    # 1. Extract unique Image IDs
+    # We split by Image ID (not caption) to ensure no data leakage.
+    # An image and ALL its captions must go together into either Train or Val.
+    images = coco_data["images"]  # Image metadata list
+    annotations = coco_data["annotations"]  # Caption list
+
+    unique_img_ids: list[int] = [img["id"] for img in images]
+
+    # 2. Shuffle and Split IDs
+    random.seed(seed)
+    random.shuffle(unique_img_ids)
+
+    cutoff = int(len(unique_img_ids) * split_ratio)
+    train_ids = set(unique_img_ids[:cutoff])
+    val_ids = set(unique_img_ids[cutoff:])
+
+    print(f"Splitting: {len(train_ids)} Train images, {len(val_ids)} Val images.")
+
+    # 3. Filter the Content
+    # Create subset lists for Train
+    train_images = [img for img in images if img["id"] in train_ids]
+    train_anns = [ann for ann in annotations if ann["image_id"] in train_ids]
+
+    # Create subset lists for Val
+    val_images = [img for img in images if img["id"] in val_ids]
+    val_anns = [ann for ann in annotations if ann["image_id"] in val_ids]
+
+    # 4. Construct and Save new JSONs
+    # We keep the original 'info' and 'licenses' to maintain COCO format
+    common_info = {
+        "info": coco_data.get("info", {}),
+        "licenses": coco_data.get("licenses", []),
+    }
+
+    train_data = {**common_info, "images": train_images, "annotations": train_anns}
+    val_data = {**common_info, "images": val_images, "annotations": val_anns}
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    train_path = os.path.join(output_dir, "train_split.json")
+    val_path = os.path.join(output_dir, "val_split.json")
+
+    with open(train_path, "w") as f:
+        json.dump(train_data, f)
+
+    with open(val_path, "w") as f:
+        json.dump(val_data, f)
+
+    print(f"Created:\n- {train_path}\n- {val_path}")
 
 
 @dataclass
@@ -68,7 +138,7 @@ class CocoDataset(Dataset):
 
         # Load COCO Annotations
         with open(annotations_path, "r") as f:
-            coco_json: dict = json.load(f)
+            coco_data: dict = json.load(f)
 
         # Build the list of CaptionData entries
         self.captions: list[CaptionData] = [
@@ -77,7 +147,7 @@ class CocoDataset(Dataset):
                 embedding_index=self.image_id_to_index[ann["image_id"]],
                 caption_text=ann["caption"],
             )
-            for ann in coco_json["annotations"]
+            for ann in coco_data["annotations"]
         ]
 
         print(
