@@ -134,7 +134,7 @@ def extract_clip_embeddings(
         clip_model (CLIPModel): Pre-loaded CLIP model.
         clip_processor (CLIPProcessor): Pre-loaded CLIP processor.
         batch_size (int, optional): Number of images to process at once. Higher is faster but uses more VRAM. Defaults to 32.
-        num_workers (int, optional): Number of CPU threads for image loading (set to 0 on Windows). Defaults to 4.
+        num_workers (int, optional): Number of CPU threads for image loading. Should be 0 on Windows. Defaults to 4.
         device (torch.device | None, optional): Device to run the model on. Defaults to None (uses model's device).
     """
 

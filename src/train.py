@@ -15,12 +15,29 @@ def train(
     model: ClipCapModel,
     batch_size: int,
     num_epochs: int,
+    num_workers: int = 4,
     learning_rate: float = 2e-5,
     num_warmup_steps: int = 0,
     save_every_epoch: int = 5,
     device: torch.device | None = None,
     outputs_dir: str = "checkpoints",
-):
+) -> None:
+    """
+    Trains the `ClipCapModel` on the provided `CocoDataset`.
+
+    Args:
+        train_dataset (CocoDataset): The training dataset.
+        model (ClipCapModel): The model to be trained.
+        batch_size (int): The batch size for training.
+        num_epochs (int): The number of training epochs.
+        num_workers (int, optional): The number of CPU threads for data loading. Should be 0 on Windows. Defaults to 4.
+        learning_rate (float, optional): The learning rate for the optimizer. Defaults to 2e-5.
+        num_warmup_steps (int, optional): The number of warmup steps for the learning rate scheduler.
+            Learning rate increases linearly from 0 to specified value during warmup. Defaults to 0.
+        save_every_epoch (int, optional): The frequency (in epochs) to save the model checkpoint. Defaults to 5.
+        device (torch.device | None, optional): The device to run the training on. Defaults to None, which selects CUDA if available.
+        outputs_dir (str, optional): The directory to save model checkpoints. Defaults to "checkpoints".
+    """
     # Create output directory if it doesn't exist
     os.makedirs(outputs_dir, exist_ok=True)
 
@@ -31,7 +48,7 @@ def train(
 
     # Data loader
     dataloader = DataLoader(
-        train_dataset, batch_size=batch_size, shuffle=True, num_workers=0
+        train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers
     )
 
     # Optimizer
@@ -109,4 +126,3 @@ def train(
     save_loss_curves(epoch_loss_values, loss_curve_path)
 
     print("Training complete.")
-    return model
