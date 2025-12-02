@@ -12,7 +12,10 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["ruff>=0.14.6"]
+dev = [
+    "ipykernel>=7.1.0",
+    "ruff>=0.14.6",
+]
 
 # Ruff (formatting and linting) configuration
 [tool.ruff]
