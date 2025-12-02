@@ -150,9 +150,7 @@ class CocoDataset(Dataset):
             for ann in coco_data["annotations"]
         ]
 
-        print(
-            f"Dataset ready: {len(self.captions)} captions for {len(self.image_id_to_index)} images."
-        )
+        print(f"Dataset ready: {len(self.captions)} captions.")
 
     @staticmethod
     def get_image_id_from_filename(filename: str) -> int:

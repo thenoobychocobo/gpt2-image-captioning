@@ -176,21 +176,21 @@ class ImageCaptioningModel(nn.Module):
     def __init__(
         self,
         mapping_network: nn.Module,
-        prefix_length: int = 10,
+        prefix_length: int | None = None,
         freeze_gpt_weights: bool = True,
     ) -> None:
         """
         Args:
             mapping_network (nn.Module): Initialized mapping network that maps image embeddings to GPT prefix tokens.
             prefix_length (int, optional): The number of prefix tokens (should match the mapping network's prefix length).
-                Defaults to 10.
+                Defaults to None, in which case it is inferred from the mapping network's `prefix_length` attribute.
             freeze_gpt_weights (bool, optional): Whether to freeze GPT-2 weights during training. Defaults to True.
         """
         # TODO: Have Mapping Network be an identifiable subclass
         # TODO: Infer prefix_length from mapping network
 
         super().__init__()
-        self.prefix_length = prefix_length
+        self.prefix_length = prefix_length or mapping_network.prefix_length
         self.mapping_network = mapping_network
 
         # Load pretrained GPT-2
