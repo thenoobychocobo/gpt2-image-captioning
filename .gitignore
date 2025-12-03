@@ -1,6 +1,6 @@
 # Project specific
 notebooks/examples/ 
-data/
+coco_data/
 checkpoints/
 
 # Byte-compiled / optimized / DLL files

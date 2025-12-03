@@ -82,4 +82,4 @@ Instead, we provide a `download_coco_datasets.sh` shell script that uses `wget` 
 ./download_coco_datasets.sh
 ```
 
-This will create a new `coco_data/` directory in your project root containing the COCO datasets.
+This will create a new `coco_data/` directory in your project root containing the COCO datasets.    
