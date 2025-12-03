@@ -4,7 +4,6 @@ from torch.nn import functional as F
 from transformers import GPT2LMHeadModel
 from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions
 
-
 class MLPMappingNetwork(nn.Module):
     """
     Maps an image embedding vector to a sequence of prefix tokens (learned vector representations)
@@ -67,6 +66,101 @@ class MLPMappingNetwork(nn.Module):
         # Split the flat output vector into a sequence of prefix_length vectors
         return x.view(x.shape[0], self.prefix_length, self.gpt_dim)
 
+class EncoderLayer(nn.Module):
+    """
+    Defines a Encoder Layer that we are using for the TransformerMappingNetwork, choose between:
+    1. A pure Transformer Encoder Layer
+    2. A CNN based Encoder Layer
+    3. A Hybrid CNN --> Transformer Encoder Layer
+    """
+    def __init__(
+        self,
+        gpt_dim: int,
+        layer_type: str = "transformer",
+        cnn_kernel_size: int = 3,
+        num_heads: int = 8,
+        dim_feedforward: int = 2048,
+    ) -> None:
+        """
+        Args:
+            gpt_dim (int): The dimensionality of the GPT token embeddings.
+            use_cnn (bool, optional): Whether to use a CNN based Encoder Layer. Defaults to False.
+            cnn_kernel_size (int, optional): Kernel size for the CNN Encoder Layer. Defaults to 3.
+            num_heads (int, optional): Number of attention heads for Transformer Encoder Layer. Defaults to 8.
+            dim_feedforward (int, optional): Dimensionality of the feedforward layer in Transformer Encoder Layer. Defaults to 2048.
+        """
+        super().__init__()
+        self.layer_type = layer_type
+
+        if self.layer_type == "transformer":
+            # Transformer Encoder Layer
+            self.transformer_layer = nn.TransformerEncoderLayer(
+                d_model=gpt_dim,
+                nhead=num_heads,
+                dim_feedforward=dim_feedforward,
+                batch_first=True,
+                activation="relu",
+                norm_first=True,
+            )
+        elif self.layer_type == "cnn":
+            # CNN based Encoder Layer
+            padding = (cnn_kernel_size - 1) // 2  # To maintain sequence length
+            self.cnn = nn.Conv1d(
+                in_channels=gpt_dim,
+                out_channels=gpt_dim,
+                kernel_size=cnn_kernel_size,
+                padding=padding,
+            )
+            self.norm = nn.LayerNorm(gpt_dim)
+            self.activation = nn.ReLU()
+        elif layer_type == "hybrid":
+            # Hybrid CNN --> Transformer Encoder Layer
+            self.cnn_transformer_layer = nn.TransformerEncoderLayer(
+                d_model=gpt_dim,
+                nhead=num_heads,
+                dim_feedforward=dim_feedforward,
+                batch_first=True,
+                activation="relu",
+                norm_first=True,
+            )
+            padding = (cnn_kernel_size - 1) // 2  # To maintain sequence length
+            self.cnn = nn.Conv1d(
+                in_channels=gpt_dim,
+                out_channels=gpt_dim,
+                kernel_size=cnn_kernel_size,
+                padding=padding,
+            )
+            self.norm = nn.LayerNorm(gpt_dim)
+            self.activation = nn.ReLU()
+        else:
+            raise ValueError(f"Unsupported block_type: {layer_type}")
+        
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            x (torch.Tensor): Input tensor of shape (batch_size, seq_length, gpt_dim)
+
+        Returns:
+            torch.Tensor: Output tensor of shape (batch_size, seq_length, gpt_dim)
+        """
+        if self.layer_type == "transformer":
+            return self.transformer_layer(x)
+        elif self.layer_type == "cnn":
+            # CNN expects input of shape (batch_size, gpt_dim, seq_length)
+            x_perm = x.permute(0, 2, 1)
+            x_conv = self.cnn(x_perm)
+            x_conv = x_conv.permute(0, 2, 1)  # Back to (batch_size, seq_length, gpt_dim)
+            x_norm = self.norm(x + x_conv)  # Residual connection
+            return self.activation(x_norm)
+        elif self.layer_type == "hybrid":
+            # First pass through Transformer Encoder Layer
+            x_transformed = self.cnn_transformer_layer(x)
+            # Then pass through CNN
+            x_perm = x_transformed.permute(0, 2, 1)
+            x_conv = self.cnn(x_perm)
+            x_conv = x_conv.permute(0, 2, 1)  # Back to (batch_size, seq_length, gpt_dim)
+            x_norm = self.norm(x_transformed + x_conv)  # Residual connection
+            return self.activation(x_norm)    
 
 class TransformerMappingNetwork(nn.Module):
     """
@@ -120,14 +214,16 @@ class TransformerMappingNetwork(nn.Module):
         )
 
         # Standard Transformer Encoder
-        encoder_layer = nn.TransformerEncoderLayer(
-            d_model=gpt_dim,
-            nhead=8,  # TODO: Make this configurable
-            dim_feedforward=int(gpt_dim * 4),  # Repo uses ratio 4.0 (L146)
-            batch_first=True,
-            activation="relu",
-            norm_first=True,  # Repo uses Pre-Norm architecture implicitly in 'forward_with_attention'
-        )
+        # encoder_layer = nn.TransformerEncoderLayer(
+        #     d_model=gpt_dim,
+        #     nhead=8,  # TODO: Make this configurable
+        #     dim_feedforward=int(gpt_dim * 4),  # Repo uses ratio 4.0 (L146)
+        #     batch_first=True,
+        #     activation="relu",
+        #     norm_first=True,  # Repo uses Pre-Norm architecture implicitly in 'forward_with_attention'
+        # )
+
+        encoder_layer = EncoderBlock(gpt_dim=gpt_dim, block_type="transformer")
 
         self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
 
