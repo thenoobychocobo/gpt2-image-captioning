@@ -4,6 +4,13 @@ This repository contains code and instructions for generating image captions usi
 
 ## Getting Started
 
+Clone this repository to your local machine:
+
+```bash
+git clone https://github.com/thenoobychocobo/gpt2-image-captioning.git
+cd gpt2-image-captioning
+```
+
 ### Environment Setup
 
 This project was developed and tested on Python 3.13. It may work on other versions, but compatibility is not guaranteed.
@@ -63,4 +70,14 @@ pip install -r requirements.txt
 ```
 
 ### Dataset Download
-This project uses the [COCO dataset](https://cocodataset.org/#home), specifically the 2014 Train, Validation, and Test sets. Refer to this [page](https://cocodataset.org/#download) for the official download instructions.
+This project uses the [COCO dataset](https://cocodataset.org/#home), specifically the 2017 Train, Validation, and Test sets. 
+
+While the the [official download instructions](https://cocodataset.org/#download) recommend using `gsutil rsync` for efficient downloading of the datasets, this method does not work as the `gs://images.cocodataset.org` bucket does not exist (as of December 2025). Refer to this [raised issue](https://github.com/cocodataset/cocoapi/issues/368).
+
+Instead, we provide a `download_coco_datasets.sh` shell script that uses `wget` to download the necessary files. You can run this script as follows:
+
+```bash
+./download_coco_datasets.sh
+```
+
+This will create a new `data/` directory in your project root containing the COCO datasets.
