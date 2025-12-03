@@ -1,4 +1,5 @@
 import os
+from typing import Any
 
 import torch
 from torch.utils.data import DataLoader
@@ -6,8 +7,9 @@ from tqdm import tqdm
 from transformers import get_linear_schedule_with_warmup
 
 from src.dataset import CocoDataset
+from src.eval import evaluate_epoch, save_eval_summary
 from src.models import ImageCaptioningModel
-from src.utils import save_loss_curves
+from src.utils import save_eval_metric_curves, save_loss_curves
 
 
 def train(
@@ -21,9 +23,18 @@ def train(
     save_every_epoch: int = 5,
     device: torch.device | None = None,
     outputs_dir: str = "checkpoints",
-) -> None:
+    # Evaluation parameters
+    val_dataset: CocoDataset | None = None,
+    val_annotations_path: str | None = None,
+    eval_every_epoch: int = 1,
+    eval_batch_size: int | None = None,
+    eval_max_length: int = 50,
+    eval_temperature: float = 1.0,
+    eval_top_p: float = 0.9,
+) -> dict[str, Any]:
     """
     Trains the `ImageCaptioningModel` on the provided `CocoDataset`.
+    Optionally runs evaluation on the validation set after each epoch.
 
     Args:
         train_dataset (CocoDataset): The training dataset.
@@ -37,9 +48,28 @@ def train(
         save_every_epoch (int, optional): The frequency (in epochs) to save the model checkpoint. Defaults to 5.
         device (torch.device | None, optional): The device to run the training on. Defaults to None, which selects CUDA if available.
         outputs_dir (str, optional): The directory to save model checkpoints. Defaults to "checkpoints".
+        val_dataset (CocoDataset | None, optional): Validation dataset for evaluation. Defaults to None.
+        val_annotations_path (str | None, optional): Path to validation annotations JSON. Required if val_dataset is provided.
+        eval_every_epoch (int, optional): Frequency of evaluation in epochs. Defaults to 1.
+        eval_batch_size (int | None, optional): Batch size for evaluation. Defaults to training batch_size.
+        eval_max_length (int, optional): Maximum caption length during generation. Defaults to 50.
+        eval_temperature (float, optional): Sampling temperature for generation. Defaults to 1.0.
+        eval_top_p (float, optional): Nucleus sampling probability. Defaults to 0.9.
+
+    Returns:
+        dict: Training history containing losses and evaluation metrics.
     """
-    # Create output directory if it doesn't exist
+    # Create output directories
     os.makedirs(outputs_dir, exist_ok=True)
+    eval_dir = os.path.join(outputs_dir, "eval_results")
+    os.makedirs(eval_dir, exist_ok=True)
+
+    # Validate evaluation parameters
+    if val_dataset is not None and val_annotations_path is None:
+        raise ValueError("val_annotations_path is required when val_dataset is provided")
+
+    # Set defaults
+    eval_batch_size = eval_batch_size or batch_size
 
     # Device and model setup
     device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -63,11 +93,17 @@ def train(
         num_training_steps=len(dataloader) * num_epochs,
     )
 
-    # Track the average loss per epoch
+    # Track training history
     epoch_loss_values: list[float] = []
+    val_metrics_history: list[dict[str, Any]] = []
+    best_val_cider: float = -1.0
+    best_epoch: int = 0
 
     # Training loop
     for epoch in range(num_epochs):
+        # Set model to training mode
+        model.train()
+
         progress_bar = tqdm(dataloader, desc=f"Epoch {epoch + 1}/{num_epochs}")
         current_epoch_loss = 0.0
 
@@ -121,8 +157,67 @@ def train(
             torch.save(model.state_dict(), checkpoint_path)
             print(f"Model checkpoint saved at {checkpoint_path}")
 
+        # Run Evaluation
+        if (epoch + 1) % eval_every_epoch == 0:
+            # Evaluate on validation set
+            if val_dataset is not None:
+                val_metrics = evaluate_epoch(
+                    model=model,
+                    dataset=val_dataset,
+                    annotations_path=val_annotations_path,
+                    epoch=epoch + 1,
+                    split_name="val",
+                    batch_size=eval_batch_size,
+                    num_workers=num_workers,
+                    max_length=eval_max_length,
+                    temperature=eval_temperature,
+                    top_p=eval_top_p,
+                    device=device,
+                    output_dir=eval_dir,
+                )
+                val_metrics_dict = {
+                    "epoch": epoch + 1,
+                    "loss": avg_loss,
+                    **val_metrics.to_dict(),
+                }
+                val_metrics_history.append(val_metrics_dict)
+
+                # Track best model by CIDEr score
+                if val_metrics.cider > best_val_cider:
+                    best_val_cider = val_metrics.cider
+                    best_epoch = epoch + 1
+                    best_model_path = os.path.join(outputs_dir, "best_model.pth")
+                    torch.save(model.state_dict(), best_model_path)
+                    print(f"New best model! CIDEr: {best_val_cider:.4f} (saved to {best_model_path})")
+
+            # Set model back to training mode
+            model.train()
+
     # Save loss curves
     loss_curve_path = os.path.join(outputs_dir, "loss_curve.png")
     save_loss_curves(epoch_loss_values, loss_curve_path)
 
+    # Save evaluation summaries and metric curves
+    if val_metrics_history:
+        save_eval_summary(
+            val_metrics_history,
+            os.path.join(eval_dir, "val_metrics_summary.json"),
+        )
+        save_eval_metric_curves(
+            val_metrics_history,
+            os.path.join(eval_dir, "val_metrics_curve.png"),
+            title="Validation Metrics Over Epochs",
+        )
+
+    # Print final summary
+    print("\n" + "=" * 60)
     print("Training complete.")
+    print(f"Best validation CIDEr: {best_val_cider:.4f} at epoch {best_epoch}")
+    print("=" * 60)
+
+    return {
+        "epoch_losses": epoch_loss_values,
+        "val_metrics": val_metrics_history,
+        "best_val_cider": best_val_cider,
+        "best_epoch": best_epoch,
+    }
