@@ -9,16 +9,12 @@ dependencies = [
     "torch>=2.9.1",
     "torchvision>=0.24.1",
     "transformers>=4.57.3",
-    # Evaluation dependencies
     "pycocoevalcap>=1.2",
-    "fiftyone>=1.2.0",
+    "fiftyone>=1.2.0",      # TODO: Fairly heavy, consider making it optional (separate dependency group)
 ]
 
 [dependency-groups]
-dev = [
-    "ipykernel>=7.1.0",
-    "ruff>=0.14.6",
-]
+dev = ["ipykernel>=7.1.0", "ruff>=0.14.6"]
 
 # Ruff (formatting and linting) configuration
 [tool.ruff]

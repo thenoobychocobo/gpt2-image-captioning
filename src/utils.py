@@ -59,7 +59,9 @@ def save_eval_metric_curves(
     for metric_name, color, linestyle in metrics_config[:4]:
         if metric_name in metrics_history[0]:
             values = [m[metric_name] for m in metrics_history]
-            ax1.plot(epochs, values, label=metric_name, color=color, linestyle=linestyle)
+            ax1.plot(
+                epochs, values, label=metric_name, color=color, linestyle=linestyle
+            )
 
     ax1.set_xlabel("Epoch")
     ax1.set_ylabel("Score")
@@ -71,7 +73,9 @@ def save_eval_metric_curves(
     for metric_name, color, linestyle in metrics_config[4:]:
         if metric_name in metrics_history[0]:
             values = [m[metric_name] for m in metrics_history]
-            ax2.plot(epochs, values, label=metric_name, color=color, linestyle=linestyle)
+            ax2.plot(
+                epochs, values, label=metric_name, color=color, linestyle=linestyle
+            )
 
     ax2.set_xlabel("Epoch")
     ax2.set_ylabel("Score")

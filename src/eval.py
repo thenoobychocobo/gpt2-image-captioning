@@ -264,9 +264,9 @@ def evaluate_epoch(
     """
     os.makedirs(output_dir, exist_ok=True)
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"Epoch {epoch} | {split_name.upper()} Evaluation")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     # Generate and evaluate
     predictions, metrics = generate_and_evaluate(
@@ -321,4 +321,3 @@ def save_eval_summary(
     with open(output_path, "w") as f:
         json.dump(all_metrics, f, indent=2)
     print(f"Evaluation summary saved to: {output_path}")
-

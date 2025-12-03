@@ -22,9 +22,9 @@ cd gpt2-image-captioning
 
 ### Environment Setup
 
-#### Using `uv` (Recommended)
-
 This project was developed and tested on Python 3.13. It may work on other versions, but compatibility is not guaranteed.
+
+#### Using `uv` (Recommended)
 
 We recommend using [`uv`](https://docs.astral.sh/uv/), a fast Python package and project manager, written in Rust. You can install `uv` via `pip` or by following the installation instructions [here](https://docs.astral.sh/uv/getting-started/installation/). 
 

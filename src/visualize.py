@@ -10,7 +10,6 @@ This module provides tools to:
 
 import json
 import os
-from typing import Any
 
 import fiftyone as fo
 from fiftyone import ViewField as F
@@ -353,4 +352,3 @@ if __name__ == "__main__":
 
     # Launch interactive app
     launch_app(dataset)
-

@@ -66,7 +66,9 @@ def train(
 
     # Validate evaluation parameters
     if val_dataset is not None and val_annotations_path is None:
-        raise ValueError("val_annotations_path is required when val_dataset is provided")
+        raise ValueError(
+            "val_annotations_path is required when val_dataset is provided"
+        )
 
     # Set defaults
     eval_batch_size = eval_batch_size or batch_size
@@ -188,7 +190,9 @@ def train(
                     best_epoch = epoch + 1
                     best_model_path = os.path.join(outputs_dir, "best_model.pth")
                     torch.save(model.state_dict(), best_model_path)
-                    print(f"New best model! CIDEr: {best_val_cider:.4f} (saved to {best_model_path})")
+                    print(
+                        f"New best model! CIDEr: {best_val_cider:.4f} (saved to {best_model_path})"
+                    )
 
             # Set model back to training mode
             model.train()
