@@ -1,8 +1,11 @@
+from typing import Literal
+
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
 from transformers import GPT2LMHeadModel
 from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions
+
 
 class MLPMappingNetwork(nn.Module):
     """
@@ -66,6 +69,7 @@ class MLPMappingNetwork(nn.Module):
         # Split the flat output vector into a sequence of prefix_length vectors
         return x.view(x.shape[0], self.prefix_length, self.gpt_dim)
 
+
 class EncoderLayer(nn.Module):
     """
     Defines a Encoder Layer that we are using for the TransformerMappingNetwork, choose between:
@@ -73,24 +77,28 @@ class EncoderLayer(nn.Module):
     2. A CNN based Encoder Layer
     3. A Hybrid CNN --> Transformer Encoder Layer
     """
+
     def __init__(
         self,
         gpt_dim: int,
-        layer_type: str = "transformer",
+        layer_type: Literal["transformer", "cnn", "hybrid"],
         cnn_kernel_size: int = 3,
         num_heads: int = 8,
-        dim_feedforward: int = 2048,
+        dim_feedforward: int | None = None,
     ) -> None:
         """
         Args:
             gpt_dim (int): The dimensionality of the GPT token embeddings.
             use_cnn (bool, optional): Whether to use a CNN based Encoder Layer. Defaults to False.
-            cnn_kernel_size (int, optional): Kernel size for the CNN Encoder Layer. Defaults to 3.
+            cnn_kernel_size (int, optional): Kernel size for the CNN Encoder Layer. Only relevant if `layer_type` is "cnn" or "hybrid".
+                Defaults to 3.
             num_heads (int, optional): Number of attention heads for Transformer Encoder Layer. Defaults to 8.
-            dim_feedforward (int, optional): Dimensionality of the feedforward layer in Transformer Encoder Layer. Defaults to 2048.
+            dim_feedforward (int | None, optional): Dimensionality of the feedforward layer in Transformer Encoder Layer.
+                Defaults to None, in which case it is set to 4 times the `gpt_dim`.
         """
         super().__init__()
         self.layer_type = layer_type
+        dim_feedforward = dim_feedforward or int(gpt_dim * 4)
 
         if self.layer_type == "transformer":
             # Transformer Encoder Layer
@@ -134,7 +142,7 @@ class EncoderLayer(nn.Module):
             self.activation = nn.ReLU()
         else:
             raise ValueError(f"Unsupported block_type: {layer_type}")
-        
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Args:
@@ -149,7 +157,9 @@ class EncoderLayer(nn.Module):
             # CNN expects input of shape (batch_size, gpt_dim, seq_length)
             x_perm = x.permute(0, 2, 1)
             x_conv = self.cnn(x_perm)
-            x_conv = x_conv.permute(0, 2, 1)  # Back to (batch_size, seq_length, gpt_dim)
+            x_conv = x_conv.permute(
+                0, 2, 1
+            )  # Back to (batch_size, seq_length, gpt_dim)
             x_norm = self.norm(x + x_conv)  # Residual connection
             return self.activation(x_norm)
         elif self.layer_type == "hybrid":
@@ -158,9 +168,12 @@ class EncoderLayer(nn.Module):
             # Then pass through CNN
             x_perm = x_transformed.permute(0, 2, 1)
             x_conv = self.cnn(x_perm)
-            x_conv = x_conv.permute(0, 2, 1)  # Back to (batch_size, seq_length, gpt_dim)
+            x_conv = x_conv.permute(
+                0, 2, 1
+            )  # Back to (batch_size, seq_length, gpt_dim)
             x_norm = self.norm(x_transformed + x_conv)  # Residual connection
-            return self.activation(x_norm)    
+            return self.activation(x_norm)
+
 
 class TransformerMappingNetwork(nn.Module):
     """
@@ -187,6 +200,7 @@ class TransformerMappingNetwork(nn.Module):
         gpt_dim: int,
         prefix_length: int,
         hidden_length: int,
+        layer_type: Literal["transformer", "cnn", "hybrid"] = "transformer",
         num_layers: int = 8,
     ) -> None:
         """
@@ -195,6 +209,9 @@ class TransformerMappingNetwork(nn.Module):
             gpt_dim (int): The dimensionality of the GPT token embeddings.
             prefix_length (int): The number of prefix tokens to generate.
             hidden_length (int): The number of tokens to project the image embedding vector into.
+            layer_type (Literal["transformer", "cnn", "hybrid"], optional): The type of encoder layer to use in the Transformer Encoder.
+                Can be "transformer" for pure Transformer Encoder layers, "cnn" for CNN based layers, or "hybrid" for CNN with Transformer layers.
+                Defaults to "transformer".
             num_layers (int, optional): The number of Transformer encoder layers. Defaults to 8.
         """
         super().__init__()
@@ -213,18 +230,10 @@ class TransformerMappingNetwork(nn.Module):
             torch.randn(prefix_length, gpt_dim), requires_grad=True
         )
 
-        # Standard Transformer Encoder
-        # encoder_layer = nn.TransformerEncoderLayer(
-        #     d_model=gpt_dim,
-        #     nhead=8,  # TODO: Make this configurable
-        #     dim_feedforward=int(gpt_dim * 4),  # Repo uses ratio 4.0 (L146)
-        #     batch_first=True,
-        #     activation="relu",
-        #     norm_first=True,  # Repo uses Pre-Norm architecture implicitly in 'forward_with_attention'
-        # )
+        # Encoder layer
+        encoder_layer = EncoderLayer(gpt_dim=gpt_dim, layer_type=layer_type)
 
-        encoder_layer = EncoderLayer(gpt_dim=gpt_dim, block_type="transformer")
-
+        # Transformer Encoder composed of multiple Encoder Layers
         self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -273,6 +282,7 @@ class ImageCaptioningModel(nn.Module):
         self,
         mapping_network: nn.Module,
         prefix_length: int | None = None,
+        gpt: GPT2LMHeadModel | None = None,
         freeze_gpt_weights: bool = True,
     ) -> None:
         """
@@ -280,23 +290,23 @@ class ImageCaptioningModel(nn.Module):
             mapping_network (nn.Module): Initialized mapping network that maps image embeddings to GPT prefix tokens.
             prefix_length (int, optional): The number of prefix tokens (should match the mapping network's prefix length).
                 Defaults to None, in which case it is inferred from the mapping network's `prefix_length` attribute.
-            freeze_gpt_weights (bool, optional): Whether to freeze GPT-2 weights during training. Defaults to True.
+            gpt (GPT2LMHeadModel | None, optional): Pretrained GPT-2 model. Defaults to None, in which case the standard GPT-2 model is loaded.
+            freeze_gpt_weights (bool, optional): Explicitly freezes GPT-2 weights if True. Otherwise, will explicitly unfreeze them if False.
+                Defaults to True.
         """
         # TODO: Have Mapping Network be an identifiable subclass
-        # TODO: Infer prefix_length from mapping network
 
         super().__init__()
         self.prefix_length = prefix_length or mapping_network.prefix_length
         self.mapping_network = mapping_network
 
-        # Load pretrained GPT-2
-        self.gpt = GPT2LMHeadModel.from_pretrained("gpt2")
+        # Load GPT-2
+        self.gpt = gpt or GPT2LMHeadModel.from_pretrained("gpt2")
         self.gpt_embedding_size = self.gpt.transformer.wte.weight.shape[1]
 
-        # Freeze weights for GPT-2
-        if freeze_gpt_weights:
-            for param in self.gpt.parameters():
-                param.requires_grad = False
+        # Explicitly freeze or unfreeze weights for GPT-2
+        for param in self.gpt.parameters():
+            param.requires_grad = not freeze_gpt_weights
 
     def forward(
         self,
