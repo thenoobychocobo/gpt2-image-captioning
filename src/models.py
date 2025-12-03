@@ -3,8 +3,10 @@ from typing import Literal
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
-from transformers import GPT2LMHeadModel
+from transformers import GPT2LMHeadModel, GPT2Tokenizer
 from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions
+
+from src.utils import load_gpt2_tokenizer
 
 
 class MLPMappingNetwork(nn.Module):
@@ -281,15 +283,20 @@ class ImageCaptioningModel(nn.Module):
     def __init__(
         self,
         mapping_network: nn.Module,
-        prefix_length: int | None = None,
+        image_prefix_length: int | None = None,
+        prefix_task_prompt: str | None = None,
+        tokenizer: GPT2Tokenizer | None = None,
         gpt: GPT2LMHeadModel | None = None,
         freeze_gpt_weights: bool = True,
     ) -> None:
         """
         Args:
             mapping_network (nn.Module): Initialized mapping network that maps image embeddings to GPT prefix tokens.
-            prefix_length (int, optional): The number of prefix tokens (should match the mapping network's prefix length).
+            image_prefix_length (int, optional): The number of image prefix tokens from the mapping network.
                 Defaults to None, in which case it is inferred from the mapping network's `prefix_length` attribute.
+            prefix_task_prompt (str | None, optional): If provided, a task-specific text prompt that is used to initialize
+                learnable prefix tokens (which we refer to as task prefix tokens) that are prepended to the image prefix tokens.
+                This allows the model to adapt to specific tasks based on the prompt. Defaults to None.
             gpt (GPT2LMHeadModel | None, optional): Pretrained GPT-2 model. Defaults to None, in which case the standard GPT-2 model is loaded.
             freeze_gpt_weights (bool, optional): Explicitly freezes GPT-2 weights if True. Otherwise, will explicitly unfreeze them if False.
                 Defaults to True.
@@ -297,16 +304,35 @@ class ImageCaptioningModel(nn.Module):
         # TODO: Have Mapping Network be an identifiable subclass
 
         super().__init__()
-        self.prefix_length = prefix_length or mapping_network.prefix_length
+        self.image_prefix_length = image_prefix_length or mapping_network.prefix_length
         self.mapping_network = mapping_network
 
-        # Load GPT-2
+        # Load GPT-2 model and tokenizer
         self.gpt = gpt or GPT2LMHeadModel.from_pretrained("gpt2")
         self.gpt_embedding_size = self.gpt.transformer.wte.weight.shape[1]
+        self.tokenizer = tokenizer or load_gpt2_tokenizer()
 
         # Explicitly freeze or unfreeze weights for GPT-2
         for param in self.gpt.parameters():
             param.requires_grad = not freeze_gpt_weights
+
+        # Task-specific prompt prefix
+        self.task_prefix_embeds: nn.Parameter | None = None
+        if prefix_task_prompt:
+            with torch.no_grad():
+                # Tokenize the text prompt to get vector embeddings
+                task_token_ids = self.tokenizer.encode(
+                    prefix_task_prompt,
+                    return_tensors="pt",
+                )
+                task_token_embeds = self.gpt.transformer.wte(task_token_ids)
+
+            # Learnable task-specific prefix tokens
+            # We use the token embeddings of the task prompt as the initial values
+            self.task_prefix_embeds = nn.Parameter(
+                task_token_embeds.squeeze(0),
+                requires_grad=True,  # Trainable!
+            )  # (num_task_prompt_tokens, gpt_dim)
 
     def forward(
         self,
@@ -334,10 +360,29 @@ class ImageCaptioningModel(nn.Module):
         # Obtain GPT token embeddings for the ground-truth captions
         caption_tokens = self.gpt.transformer.wte(caption_token_ids)
 
-        # Obtain the prefix tokens from the image embeddings via the mapping network
-        prefix_tokens = self.mapping_network(image_embeddings)
+        # Obtain the image prefix tokens from the image embeddings via the mapping network
+        prefix_tokens = self.mapping_network(
+            image_embeddings
+        )  # (batch_size, prefix_length, gpt_dim)
 
-        # Concatenate prefix tokens with the ground-truth caption tokens
+        # Obtain the task-specific prompt prefix tokens (if any)
+        if self.task_prefix_embeds is not None:
+            # Duplicate the task-specific prefix for each input in the batch
+            # (task_prefix_length, gpt_dim) to (batch_size, task_prefix_length, gpt_dim)
+            batch_size = image_embeddings.shape[0]
+            task_prefix_tokens = self.task_prefix_embeds.unsqueeze(0).expand(
+                batch_size, -1, -1
+            )
+
+            # Concatenate the task prefix tokens with the image prefix tokens
+            prefix_tokens = torch.cat(
+                (prefix_tokens, task_prefix_tokens), dim=1
+            )  # TODO: Determine which order is better
+
+        # Determine total prefix length
+        total_prefix_length = prefix_tokens.shape[1]
+
+        # Concatenate prefix tokens + ground-truth caption tokens
         input_tokens = torch.cat((prefix_tokens, caption_tokens), dim=1)
 
         # Handle Labels (labels simply denote which tokens to compute loss on)
@@ -345,23 +390,26 @@ class ImageCaptioningModel(nn.Module):
             # Add dummy labels for the prefix tokens so that we don't train on them
             # We want to compute loss only on the caption tokens, GPT-2 should not be trained to predict the prefix tokens
             # NOTE: The mapping network is still trained to produce good prefix tokens via loss/error signal from the generated caption tokens
-            dummy_labels = (
-                torch.zeros(
-                    labels.shape[0],  # batch size
-                    self.prefix_length,  # number of prefix tokens
-                    dtype=torch.int64,
-                    device=caption_token_ids.device,
-                )
-                - 100
-            )  # -100 is the standard PyTorch ignore_index for CrossEntropyLoss
+
+            dummy_labels = torch.full(
+                (
+                    labels.shape[0],
+                    total_prefix_length,
+                ),  # (batch size, number of prefix tokens)
+                -100,  # -100 is the standard PyTorch ignore_index for CrossEntropyLoss
+                dtype=torch.int64,
+                device=caption_token_ids.device,
+            )
             labels = torch.cat((dummy_labels, labels), dim=1)
 
         # Handle Attention Mask
         if attention_mask is not None:
             # Add attention mask of 1s for the prefix tokens, ensuring they are attended to
             dummy_attention_mask = torch.ones(
-                attention_mask.shape[0],  # batch size
-                self.prefix_length,  # number of prefix tokens
+                (
+                    attention_mask.shape[0],
+                    total_prefix_length,
+                ),  # (batch size, number of prefix tokens)
                 dtype=attention_mask.dtype,
                 device=attention_mask.device,
             )
@@ -404,11 +452,25 @@ class ImageCaptioningModel(nn.Module):
         device = image_embeddings.device
         batch_size = image_embeddings.shape[0]
 
-        # Process image embeddings through the mapping network to get prefix tokens
+        # Process image embeddings through the mapping network to get image prefix tokens
         with torch.no_grad():
             prefix_tokens = self.mapping_network.forward(
                 image_embeddings
             )  # (batch_size, prefix_length, gpt_dim)
+
+        # Obtain the task-specific prompt prefix tokens (if any)
+        if self.task_prefix_embeds is not None:
+            # Duplicate the task-specific prefix for each input in the batch
+            # (task_prefix_length, gpt_dim) to (batch_size, task_prefix_length, gpt_dim)
+            batch_size = image_embeddings.shape[0]
+            task_prefix_tokens = self.task_prefix_embeds.unsqueeze(0).expand(
+                batch_size, -1, -1
+            )
+
+            # Concatenate the task prefix tokens with the image prefix tokens
+            prefix_tokens = torch.cat(
+                (prefix_tokens, task_prefix_tokens), dim=1
+            )  # TODO: Determine which order is better
 
         # Initialize input for GPT-2 decoding
         current_input_tokens = prefix_tokens
@@ -507,4 +569,5 @@ class ImageCaptioningModel(nn.Module):
             return torch.empty((batch_size, 0), dtype=torch.long, device=device)
 
         # Return generated tokens (to be passed to a tokenizer for decoding to text)
+        # TODO: Use self.tokenizer to decode directly
         return torch.cat(generated_tokens, dim=1)  # (batch_size, generated_length)

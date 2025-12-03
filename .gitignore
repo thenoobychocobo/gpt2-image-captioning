@@ -1,5 +1,6 @@
 # Project specific
 notebooks/examples/ 
+data/
 coco_data/
 checkpoints/
 

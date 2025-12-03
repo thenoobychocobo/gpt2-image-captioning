@@ -44,7 +44,7 @@ def train(
     # Device and model setup
     device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
-    model.train()
+    model.train()  # Set model to training mode
 
     # Data loader
     dataloader = DataLoader(

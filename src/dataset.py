@@ -106,7 +106,7 @@ class CocoDataset(Dataset):
         self,
         embeddings_path: str,
         annotations_path: str,
-        tokenizer: PreTrainedTokenizer = load_gpt2_tokenizer(),
+        tokenizer: PreTrainedTokenizer | None = None,
         max_length: int = 50,
         normalize_embeddings: bool = False,
     ):
@@ -114,12 +114,12 @@ class CocoDataset(Dataset):
         Args:
             embeddings_path (str): Path to the .pt file containing image filenames and pre-computed image embeddings.
             annotations_path (str): Path to captions_train2014.json.
-            tokenizer (PreTrainedTokenizer): Tokenizer for processing captions. Defaults to GPT-2 tokenizer.
+            tokenizer (PreTrainedTokenizer | None): Tokenizer for processing captions. Defaults to None, in which case the GPT-2 tokenizer is loaded.
             max_length (int, optional): Maximum length for tokenized captions. Defaults to 50.
             normalize_embeddings (bool, optional): If True, re-normalizes embeddings (usually not needed if already done).
                 Defaults to False.
         """
-        self.tokenizer = tokenizer
+        self.tokenizer = tokenizer or load_gpt2_tokenizer()
         self.max_length = max_length
         self.normalize_embeddings = normalize_embeddings
 
