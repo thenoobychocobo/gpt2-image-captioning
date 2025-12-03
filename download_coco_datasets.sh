@@ -62,6 +62,7 @@ unzip -q "$DATA_DIR/image_info_test2017.zip" -d "$DATA_DIR" &
 wait
 echo "--- Annotation Unzip Complete. Cleaning up... ---"
 
+
 # === 7. Cleanup (Remove zip files) ===
 
 rm "$DATA_DIR/annotations_trainval2017.zip" "$DATA_DIR/image_info_test2017.zip"

@@ -1,6 +1,15 @@
 # Image Captioning with GPT-2
 
-This repository contains code and instructions for generating image captions using a GPT-2 model fine-tuned on image captioning datasets.
+This repository contains code for generating image captions using the GPT-2 large language model. The goal of the project is to see how far we can push the capabilities of GPT-2 (a fairly small and weak model by today's standards) in the image captioning task, by implementing various techniques and supporting models.
+
+**Table of Contents**
+- [Getting Started](#getting-started)
+  - [Environment Setup](#environment-setup)
+    - [Using `uv` (Recommended)](#using-uv-recommended)
+    - [Using `pip` and `venv`](#using-pip-and-venv)
+  - [Dataset Download](#dataset-download)
+  - [Extracting Image Embeddings](#extracting-image-embeddings)
+- [Methodology](#methodology)
 
 ## Getting Started
 
@@ -72,14 +81,36 @@ pip install -r requirements.txt
 ```
 
 ### Dataset Download
-This project uses the [COCO dataset](https://cocodataset.org/#home); specifically the 2017 Train, Validation, and Test sets. 
 
-While the [official download instructions](https://cocodataset.org/#download) recommends using `gsutil rsync` for efficient downloading of the datasets, this method does not work as the `gs://images.cocodataset.org` bucket does not exist (as of December 2025). Refer to this [raised issue](https://github.com/cocodataset/cocoapi/issues/368).
+This project uses the [COCO dataset](https://cocodataset.org/#home): specifically the 2017 Train, Validation, and Test sets. 
 
-Instead, we provide a `download_coco_datasets.sh` shell script that uses `wget` to download the necessary files. You can run this script as follows:
+While the [official download instructions](https://cocodataset.org/#download) recommends using `gsutil rsync` for efficient downloading of the datasets, this method does not currently work (as of December 2025) as the `gs://images.cocodataset.org` bucket cannot be found (does not exist). Refer to this [raised issue](https://github.com/cocodataset/cocoapi/issues/368).
+
+Instead, we provide a [`download_coco_datasets.sh`](download_coco_datasets.sh) shell script that uses `wget` to download the necessary files. You can run this script as follows:
 
 ```bash
 ./download_coco_datasets.sh
 ```
 
-This will create a new `coco_data/` directory in your project root containing the COCO datasets.    
+This will create a new `coco_data/` directory in your project root containing the COCO datasets. The directory structure should look like this:
+
+``` 
+coco_data/
+├── annotations
+│   ├── captions_train2017.json
+│   ├── captions_val2017.json
+│   └── image_info_test2017.json
+├── train2017
+├── val2017
+└── test2017
+```
+
+### Extracting Image Embeddings
+
+**Section is WIP**
+
+Refer to the `extract_clip_embeddings.ipynb` Jupyter notebook to extract image embeddings using the CLIP model.
+
+## Methodology
+
+**Section is WIP**
