@@ -223,7 +223,7 @@ class TransformerMappingNetwork(nn.Module):
         #     norm_first=True,  # Repo uses Pre-Norm architecture implicitly in 'forward_with_attention'
         # )
 
-        encoder_layer = EncoderBlock(gpt_dim=gpt_dim, block_type="transformer")
+        encoder_layer = EncoderLayer(gpt_dim=gpt_dim, block_type="transformer")
 
         self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
 
