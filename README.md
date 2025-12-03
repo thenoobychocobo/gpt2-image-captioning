@@ -13,6 +13,8 @@ cd gpt2-image-captioning
 
 ### Environment Setup
 
+#### Using `uv` (Recommended)
+
 This project was developed and tested on Python 3.13. It may work on other versions, but compatibility is not guaranteed.
 
 We recommend using [`uv`](https://docs.astral.sh/uv/), a fast Python package and project manager, written in Rust. You can install `uv` via `pip` or by following the installation instructions [here](https://docs.astral.sh/uv/getting-started/installation/). 
@@ -54,7 +56,7 @@ explicit = true
 
 If you are targetting a different CUDA version (or CPU only), simply refer to the [uv documentation](https://docs.astral.sh/uv/guides/integration/pytorch/#installing-pytorch) and modify the `pyproject.toml` file accordingly.
 
----
+#### Using `pip` and `venv`
 
 If you'd prefer to use `pip` and `venv`, you can create a virtual environment and install the required packages using:
 
@@ -70,9 +72,9 @@ pip install -r requirements.txt
 ```
 
 ### Dataset Download
-This project uses the [COCO dataset](https://cocodataset.org/#home), specifically the 2017 Train, Validation, and Test sets. 
+This project uses the [COCO dataset](https://cocodataset.org/#home); specifically the 2017 Train, Validation, and Test sets. 
 
-While the the [official download instructions](https://cocodataset.org/#download) recommend using `gsutil rsync` for efficient downloading of the datasets, this method does not work as the `gs://images.cocodataset.org` bucket does not exist (as of December 2025). Refer to this [raised issue](https://github.com/cocodataset/cocoapi/issues/368).
+While the [official download instructions](https://cocodataset.org/#download) recommends using `gsutil rsync` for efficient downloading of the datasets, this method does not work as the `gs://images.cocodataset.org` bucket does not exist (as of December 2025). Refer to this [raised issue](https://github.com/cocodataset/cocoapi/issues/368).
 
 Instead, we provide a `download_coco_datasets.sh` shell script that uses `wget` to download the necessary files. You can run this script as follows:
 
