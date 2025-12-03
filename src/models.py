@@ -508,3 +508,6 @@ class ImageCaptioningModel(nn.Module):
 
         # Return generated tokens (to be passed to a tokenizer for decoding to text)
         return torch.cat(generated_tokens, dim=1)  # (batch_size, generated_length)
+
+class RetrievalAugmentedTransformer(ImageCaptioningModel):
+    """"""
