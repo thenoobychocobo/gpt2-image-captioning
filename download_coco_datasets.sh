@@ -6,7 +6,7 @@ set -e
 # === 1. Setup Directories ===
 
 # Define directories
-DATA_DIR="data"
+DATA_DIR="coco_data"
 TRAIN_DIR="$DATA_DIR/train2017"
 VAL_DIR="$DATA_DIR/val2017"
 TEST_DIR="$DATA_DIR/test2017"
