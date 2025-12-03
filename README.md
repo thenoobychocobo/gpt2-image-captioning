@@ -1,7 +1,11 @@
 # Image Captioning with GPT-2
+
 This repository contains code and instructions for generating image captions using a GPT-2 model fine-tuned on image captioning datasets.
 
 ## Getting Started
+
+### Environment Setup
+
 This project was developed and tested on Python 3.13. It may work on other versions, but compatibility is not guaranteed.
 
 We recommend using [`uv`](https://docs.astral.sh/uv/), a fast Python package and project manager, written in Rust. You can install `uv` via `pip` or by following the installation instructions [here](https://docs.astral.sh/uv/getting-started/installation/). 
@@ -57,3 +61,6 @@ Then install the dependencies:
 ```bash
 pip install -r requirements.txt
 ```
+
+### Dataset Download
+This project uses the [COCO dataset](https://cocodataset.org/#home), specifically the 2014 Train, Validation, and Test sets. Refer to this [page](https://cocodataset.org/#download) for the official download instructions.
