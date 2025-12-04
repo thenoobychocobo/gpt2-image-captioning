@@ -13,10 +13,10 @@ download() {
     if command -v curl >/dev/null 2>&1; then
         echo "curl found, using curl to download."
         filename=$(basename "$url")
-        curl -L -C - "$url" -o "$outdir/$filename" &
+        curl -L -C - "$url" -o "$outdir/$filename" 
     elif command -v wget >/dev/null 2>&1; then
         echo "wget found, using wget to download."
-        wget -c -P "$outdir" "$url" &
+        wget -c -P "$outdir" "$url" 
     else
         echo "Error: curl and wget are not installed. Please install one of them to proceed." >&2
         exit 1
