@@ -1,5 +1,3 @@
-from typing import Literal
-
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
@@ -97,7 +95,6 @@ class TransformerMappingNetwork(nn.Module):
         gpt_dim: int,
         prefix_length: int,
         hidden_length: int,
-        layer_type: Literal["transformer", "cnn", "hybrid"] = "transformer",
         num_layers: int = 8,
     ) -> None:
         """
@@ -106,9 +103,6 @@ class TransformerMappingNetwork(nn.Module):
             gpt_dim (int): The dimensionality of the GPT token embeddings.
             prefix_length (int): The number of prefix tokens to generate.
             hidden_length (int): The number of tokens to project the image embedding vector into.
-            layer_type (Literal["transformer", "cnn", "hybrid"], optional): The type of encoder layer to use in the Transformer Encoder.
-                Can be "transformer" for pure Transformer Encoder layers, "cnn" for CNN based layers, or "hybrid" for CNN with Transformer layers.
-                Defaults to "transformer".
             num_layers (int, optional): The number of Transformer encoder layers. Defaults to 8.
         """
         super().__init__()
@@ -130,8 +124,8 @@ class TransformerMappingNetwork(nn.Module):
         # Encoder layer
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=gpt_dim,
-            nhead=8, # TODO: make configurable
-            dim_feedforward=int(gpt_dim * 4), 
+            nhead=8,  # TODO: make configurable
+            dim_feedforward=int(gpt_dim * 4),
             batch_first=True,
             activation="relu",
             norm_first=True,
