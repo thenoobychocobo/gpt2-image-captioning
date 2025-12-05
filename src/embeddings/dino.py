@@ -1,6 +1,7 @@
 import os
 import torch
-from typing import Literal
+import torchvision.transforms.v2 as v2
+from typing import Literal, Sequence, Any
 from PIL import Image
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -10,6 +11,10 @@ from src.utils import ImageDirectoryDataset
 
 WEIGHTS_FILE = "dinov3_vitl16_dinotxt_vision_head_and_text_encoder-a442d8f5.pth"
 BACKBONE_WEIGHTS_FILE = "dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth"
+RESIZE_DEFAULT_SIZE = 256
+CROP_DEFAULT_SIZE = 224
+IMAGENET_DEFAULT_MEAN = (0.485, 0.456, 0.406)
+IMAGENET_DEFAULT_STD = (0.229, 0.224, 0.225) 
 
 
 def load_dinov3_models(
@@ -78,3 +83,117 @@ def load_dinov3_models(
     #         text_features = model.encode_text(tokenized_texts_tensor)
     #     # image_features /= image_features.norm(dim=-1, keepdim=True)
     #     # text_features /= text_features.norm(dim=-1, keepdim=True)
+
+# why do i copy the preprocessor from the repo? because the torch.hub.load does not help on getting it, it only helps on getting the model and tokenizer.
+# if can find another way to get the preprocessor from the repo, then can replace all these code
+
+def make_eval_transform(
+    *,
+    resize_size: int,
+    crop_size: int,
+    interpolation,
+    mean: Sequence[float],
+    std: Sequence[float],
+    resize_square: bool = False,
+    resize_large_side: bool = False,
+) -> v2.Compose:
+    transforms_list = [v2.ToImage()]
+    
+    if resize_square:
+        transforms_list.append(v2.Resize((resize_size, resize_size), interpolation=interpolation))
+    elif resize_large_side:
+        transforms_list.append(v2.Resize(resize_size, interpolation=interpolation, antialias=True))
+    else:
+        transforms_list.append(v2.Resize(resize_size, interpolation=interpolation))
+
+    transforms_list.append(v2.CenterCrop(crop_size))
+    
+    transforms_list.extend([
+        v2.ToDtype(torch.float32, scale=True),
+        v2.Normalize(mean=mean, std=std)
+    ])
+    
+    return v2.Compose(transforms_list)
+
+def get_dinov3_preprocessor(
+    *,
+    resize_size: int = RESIZE_DEFAULT_SIZE,
+    crop_size: int = CROP_DEFAULT_SIZE,
+    interpolation=v2.InterpolationMode.BICUBIC,
+    mean: Sequence[float] = IMAGENET_DEFAULT_MEAN,
+    std: Sequence[float] = IMAGENET_DEFAULT_STD,
+) -> v2.Compose:
+    return make_eval_transform(
+        resize_size=resize_size,
+        crop_size=crop_size,
+        interpolation=interpolation,
+        mean=mean,
+        std=std,
+        resize_square=False,
+        resize_large_side=False,
+    )
+
+def extract_dino_embeddings(
+    image_dir: str,
+    output_path: str,
+    # TODO: change any to proper types
+    dino_model: Any,
+    dino_processor: Any,
+    batch_size: int = 32,
+    num_workers: int = 4,
+    device: torch.device | None = None,
+) -> None:
+    # load Image
+    device = device or dino_model.device
+
+    # Setup Data Loading
+    dataset = ImageDirectoryDataset(image_dir)
+    dataloader = DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        collate_fn=ImageDirectoryDataset.collate_fn,
+    )
+
+    all_embeddings: list[torch.Tensor] = []
+    all_filenames: list[str] = []
+    print(f"Starting DINO embedding extraction for {len(dataset)} images...")
+    with torch.no_grad():
+        for batch_filenames, batch_images in tqdm(dataloader, desc="DINO Embedding Extraction"):
+            # batch_images is a list of PIL images (or whatever ImageDirectoryDataset yields)
+            # apply the single-image processor to each image, then stack to get (B, C, H, W)
+            processed = [dino_processor(img) for img in batch_images]
+            # ensure each processed item is a tensor CxHxW
+            image_tensor = torch.stack(processed, dim=0).to(device)
+
+            image_features = dino_model.encode_image(image_tensor)
+            image_features = image_features / image_features.norm(p=2, dim=-1, keepdim=True)
+            all_embeddings.append(image_features.cpu())
+            all_filenames.extend(batch_filenames)
+
+    final_embeddings = torch.cat(all_embeddings, dim=0)
+
+    print(f"Saving {final_embeddings.shape[0]} embeddings to {output_path}...")
+    torch.save(
+        {"filenames": all_filenames, "embeddings": final_embeddings}, output_path
+    )
+
+if __name__ == "__main__":
+    # Device
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # TODO: replace the paths below with real ones
+    dino_model, _ = load_dinov3_models(model_weights_dir="path/to/dinov3/weights", device=device)
+    dino_processor = get_dinov3_preprocessor()
+
+    # Extract and Save Embeddings (batch processing)
+    extract_dino_embeddings(
+        image_dir="path/to/image/directory",
+        output_path="dino_image_embeddings.pt",
+        dino_model=dino_model,
+        dino_processor=dino_processor,
+        batch_size=64,
+        num_workers=4,  # Set to 0 on Windows
+        device=device,
+    )
