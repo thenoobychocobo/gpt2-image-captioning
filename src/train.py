@@ -155,8 +155,8 @@ def train(
 
         # Save Checkpoint
         if (epoch + 1) % save_every_epoch == 0 or (epoch + 1) == num_epochs:
-            checkpoint_path = os.path.join(outputs_dir, f"model_epoch_{epoch + 1}.pth")
-            torch.save(model.state_dict(), checkpoint_path)
+            checkpoint_path = os.path.join(outputs_dir, f"model_epoch_{epoch + 1}.pt")
+            model.save_parameters(checkpoint_path)
             print(f"Model checkpoint saved at {checkpoint_path}")
 
         # Run Evaluation
@@ -188,8 +188,8 @@ def train(
                 if val_metrics.cider > best_val_cider:
                     best_val_cider = val_metrics.cider
                     best_epoch = epoch + 1
-                    best_model_path = os.path.join(outputs_dir, "best_model.pth")
-                    torch.save(model.state_dict(), best_model_path)
+                    best_model_path = os.path.join(outputs_dir, "best_model.pt")
+                    model.save_parameters(best_model_path)
                     print(
                         f"New best model! CIDEr: {best_val_cider:.4f} (saved to {best_model_path})"
                     )
