@@ -72,112 +72,6 @@ class MLPMappingNetwork(nn.Module):
         # Split the flat output vector into a sequence of prefix_length vectors
         return x.view(x.shape[0], self.prefix_length, self.gpt_dim)
 
-
-class EncoderLayer(nn.Module):
-    """
-    Defines a Encoder Layer that we are using for the TransformerMappingNetwork, choose between:
-    1. A pure Transformer Encoder Layer
-    2. A CNN based Encoder Layer
-    3. A Hybrid CNN --> Transformer Encoder Layer
-    """
-
-    def __init__(
-        self,
-        gpt_dim: int,
-        layer_type: Literal["transformer", "cnn", "hybrid"],
-        cnn_kernel_size: int = 3,
-        num_heads: int = 8,
-        dim_feedforward: int | None = None,
-    ) -> None:
-        """
-        Args:
-            gpt_dim (int): The dimensionality of the GPT token embeddings.
-            use_cnn (bool, optional): Whether to use a CNN based Encoder Layer. Defaults to False.
-            cnn_kernel_size (int, optional): Kernel size for the CNN Encoder Layer. Only relevant if `layer_type` is "cnn" or "hybrid".
-                Defaults to 3.
-            num_heads (int, optional): Number of attention heads for Transformer Encoder Layer. Defaults to 8.
-            dim_feedforward (int | None, optional): Dimensionality of the feedforward layer in Transformer Encoder Layer.
-                Defaults to None, in which case it is set to 4 times the `gpt_dim`.
-        """
-        super().__init__()
-        self.layer_type = layer_type
-        dim_feedforward = dim_feedforward or int(gpt_dim * 4)
-
-        if self.layer_type == "transformer":
-            # Transformer Encoder Layer
-            self.transformer_layer = nn.TransformerEncoderLayer(
-                d_model=gpt_dim,
-                nhead=num_heads,
-                dim_feedforward=dim_feedforward,
-                batch_first=True,
-                activation="relu",
-                norm_first=True,
-            )
-        elif self.layer_type == "cnn":
-            # CNN based Encoder Layer
-            padding = (cnn_kernel_size - 1) // 2  # To maintain sequence length
-            self.cnn = nn.Conv1d(
-                in_channels=gpt_dim,
-                out_channels=gpt_dim,
-                kernel_size=cnn_kernel_size,
-                padding=padding,
-            )
-            self.norm = nn.LayerNorm(gpt_dim)
-            self.activation = nn.ReLU()
-        elif layer_type == "hybrid":
-            # Hybrid CNN --> Transformer Encoder Layer
-            self.cnn_transformer_layer = nn.TransformerEncoderLayer(
-                d_model=gpt_dim,
-                nhead=num_heads,
-                dim_feedforward=dim_feedforward,
-                batch_first=True,
-                activation="relu",
-                norm_first=True,
-            )
-            padding = (cnn_kernel_size - 1) // 2  # To maintain sequence length
-            self.cnn = nn.Conv1d(
-                in_channels=gpt_dim,
-                out_channels=gpt_dim,
-                kernel_size=cnn_kernel_size,
-                padding=padding,
-            )
-            self.norm = nn.LayerNorm(gpt_dim)
-            self.activation = nn.ReLU()
-        else:
-            raise ValueError(f"Unsupported block_type: {layer_type}")
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Args:
-            x (torch.Tensor): Input tensor of shape (batch_size, seq_length, gpt_dim)
-
-        Returns:
-            torch.Tensor: Output tensor of shape (batch_size, seq_length, gpt_dim)
-        """
-        if self.layer_type == "transformer":
-            return self.transformer_layer(x)
-        elif self.layer_type == "cnn":
-            # CNN expects input of shape (batch_size, gpt_dim, seq_length)
-            x_perm = x.permute(0, 2, 1)
-            x_conv = self.cnn(x_perm)
-            x_conv = x_conv.permute(
-                0, 2, 1
-            )  # Back to (batch_size, seq_length, gpt_dim)
-            x_norm = self.norm(x + x_conv)  # Residual connection
-            return self.activation(x_norm)
-        elif self.layer_type == "hybrid":
-            # First pass through Transformer Encoder Layer
-            x_transformed = self.cnn_transformer_layer(x)
-            # Then pass through CNN
-            x_perm = x_transformed.permute(0, 2, 1)
-            x_conv = self.cnn(x_perm)
-            x_conv = x_conv.permute(
-                0, 2, 1
-            )  # Back to (batch_size, seq_length, gpt_dim)
-            x_norm = self.norm(x_transformed + x_conv)  # Residual connection
-            return self.activation(x_norm)
-
-
 class TransformerMappingNetwork(nn.Module):
     """
     Maps an image embedding vector to a sequence of prefix tokens (learned vector representations)
@@ -234,7 +128,14 @@ class TransformerMappingNetwork(nn.Module):
         )
 
         # Encoder layer
-        encoder_layer = EncoderLayer(gpt_dim=gpt_dim, layer_type=layer_type)
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=gpt_dim,
+            nhead=8,  # TODO: make configurable
+            dim_feedforward=int(gpt_dim * 4),
+            batch_first=True,
+            activation="relu",
+            norm_first=True,
+        )
 
         # Transformer Encoder composed of multiple Encoder Layers
         self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
@@ -627,9 +528,12 @@ class RetrievalAugmentedTransformer(ImageCaptioningModel):
         for i in range(batch_size):
             single_embedding = image_embeddings[i:i+1]
 
+            # Convert this to a numpy array for Objectbox to be able to search for nearest neighbors
+            query_vector_for_db = single_embedding.squeeze(0).tolist()
+
             filenames_with_scores = retrieve_images_by_vector_similarity(
                 db_store=db_store,
-                query_embedding_vector=single_embedding,
+                query_embedding_vector=query_vector_for_db,
                 top_i=top_i,
             )
             
@@ -638,6 +542,7 @@ class RetrievalAugmentedTransformer(ImageCaptioningModel):
                 top_k=top_k,
                 filenames=[filename for filename, _ in filenames_with_scores],
             )
+            caption_embeds = torch.from_numpy(caption_embeds).to(image_embeddings.device)
             all_retrieved_embeddings.append(caption_embeds)
         
         # Stack: (batch_size, top_k, embed_dim)

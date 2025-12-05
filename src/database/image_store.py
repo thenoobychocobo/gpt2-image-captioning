@@ -42,53 +42,6 @@ def create_objectbox_store(
     db_store = Store(model=OBJECTBOX_MODEL, directory=db_directory)
     return db_store
 
-
-def add_images_to_store(db_store: Store, images: list[Image]) -> list[int]:
-    """
-    Add images to the given ObjectBox store.
-
-    Args:
-        db_store (Store): The ObjectBox store to add images to.
-        images (list[Image]): List of images to be added.
-
-    Returns:
-        list[int]: List of IDs of the added images.
-    """
-    image_box: Box = db_store.box(Image)
-    ids: list[int] = add_entities_to_store(db_store, image_box, images)
-    return ids
-
-def add_captions_to_store(db_store: Store, captions: list[Caption]) -> list[int]:
-    """
-    Add captions to the given ObjectBox store.
-
-    Args:
-        db_store (Store): The ObjectBox store to add captions to.
-        captions (list[Caption]): List of captions to be added.
-
-    Returns:
-        list[int]: List of IDs of the added captions.
-    """
-    caption_box: Box = db_store.box(Caption)
-    ids: list[int] = add_entities_to_store(db_store, caption_box, captions)
-    return ids
-
-def add_entities_to_store(db_store: Store, box: Box, entities: list) -> list[int]:
-    """
-    Add items to the specified box.
-
-    Args:
-        db_store (Store): The ObjectBox store.
-        box (Box): The ObjectBox box to add items to (from the same store).
-        entities (list): List of entities to be added to the box. Assumes all items
-            are of the same type (Entity class). Infers type from the first item.
-    Returns:
-        list[int]: List of IDs of the added items.
-    """
-    # Passing a list to box.put() triggers an internal C++ bulk insert.
-    # It automatically handles the transaction and returns the list of IDs.
-    return box.put(entities)
-
 # TODO: top-k images is not equivalent to top k images, might need different handling
 def retrieve_images_by_vector_similarity(
     db_store: Store, query_embedding_vector: np.ndarray, top_i: int
@@ -111,12 +64,11 @@ def retrieve_images_by_vector_similarity(
         .build()
     )
     results = query.find_with_scores()
-    # if score is exactly 1.0, it means it's the same image, we skip it
-    results = [result for result in results if result[1] < 0.9999]
-    # Print score along with filename for debugging
-    print("Retrieved Images and Similarity Scores:")
-    for result in results:
-        print(f"Filename: {result[0].file_name}, Similarity Score: {result[1]}")
+
+    # If score is exactly 0, it means it's the same image, we skip it
+    # Since the embeddings are normalised dot product, ObjectBox returns 1.0 for the same image (which is 1 - 1.0 = 0 distance)
+    results = [result for result in results if result[1] > 0.0001]
+
     return [(result[0].file_name, result[1]) for result in results]
 
 def get_caption_embeddings(

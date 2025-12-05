@@ -6,6 +6,8 @@ Defines ObjectBox entities for storing documents and chunks with vector embeddin
 
 from objectbox import (
     Entity,
+    Int64,
+    String,
     Float32Vector,
     HnswIndex,
     Id,
@@ -28,7 +30,7 @@ class Image:
     """
 
     id = Id()
-    file_name = str
+    file_name = String()
     image_embedding_vector = Float32Vector(
         index=HnswIndex(
             dimensions=IMAGE_EMBEDDING_DIMENSIONS,
@@ -47,8 +49,8 @@ class Caption:
     """
 
     id = Id()
-    file_name = int
-    caption_id = int
+    file_name = String()
+    caption_id = Int64()
     caption_embedding_vector = Float32Vector(
         index=HnswIndex(
             dimensions=CAPTION_EMBEDDING_DIMENSIONS,

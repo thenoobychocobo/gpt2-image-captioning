@@ -165,14 +165,14 @@ def run_indexing_pipeline(
     print("Indexing pipeline complete!")
 
 if __name__ == "__main__":
-    # 1. Get the path to your high-speed Linux Home Directory
-    # This resolves to something like "/home/hoxia/objectbox_db"
-    fast_db_path = os.path.join(os.path.expanduser("~"), "vector_db")
-    
-    print(f"SAVING DATABASE TO: {fast_db_path}")
+
+    db_path = "vector_db"
+
+    if not os.path.exists(db_path):
+        os.makedirs(db_path)
 
     run_indexing_pipeline(
-        db_directory=fast_db_path,  # <--- FORCE LINUX PATH
-        image_embedding_file_path="/mnt/c/Users/hoxia/Documents/NLDeeznuts/gpt2-image-captioning/data/data/coco/embeddings/train_clip_embeddings.pt",
-        caption_embedding_file_path="/mnt/c/Users/hoxia/Documents/NLDeeznuts/gpt2-image-captioning/data/data/coco/embeddings/train_caption_embeddings.pt"
+        db_directory=db_path,
+        image_embedding_file_path="path_to_image_embedding_file.pt",
+        caption_embedding_file_path="path_to_caption_embedding_file.pt",
     )
