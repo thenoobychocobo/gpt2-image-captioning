@@ -6,6 +6,9 @@ from torch.nn import functional as F
 from transformers import GPT2LMHeadModel
 from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions
 
+from objectbox import Store
+from src.database.image_store import retrieve_images_by_vector_similarity, get_caption_embeddings
+from src.database.entities import Image
 
 class MLPMappingNetwork(nn.Module):
     """
@@ -509,5 +512,190 @@ class ImageCaptioningModel(nn.Module):
         # Return generated tokens (to be passed to a tokenizer for decoding to text)
         return torch.cat(generated_tokens, dim=1)  # (batch_size, generated_length)
 
+class RetrievalAggregator(nn.Module):
+    """
+    Aggregates retrieved caption embeddings using various pooling strategies.
+    Based on the RAT paper's comparison of aggregation functions.
+    """
+    def __init__(
+        self, 
+        embed_dim: int, 
+        aggregation_type: Literal["mean", "max", "sum_norm", "attention"] = "mean"
+    ):
+        """
+        Args:
+            embed_dim: Dimension of embeddings
+            aggregation_type: 
+                - "mean": Standard average pooling (best per paper)
+                - "max": Max pooling over retrieved embeddings
+                - "sum_norm": Sum of L2-normalized features followed by L2-norm
+                - "attention": Learnable attention weights (not in paper, but good alternative)
+        """
+        super().__init__()
+        self.aggregation_type = aggregation_type
+        self.embed_dim = embed_dim
+        
+        if aggregation_type == "attention":
+            # Learnable attention for comparison
+            self.attention_proj = nn.Linear(embed_dim, 1)
+    
+    def forward(
+        self,
+        query_embedding: torch.Tensor, 
+        retrieved_embeddings: torch.Tensor
+    ) -> torch.Tensor:
+        """
+        Args:
+            query_embedding: (batch_size, embed_dim) - original image embedding
+            retrieved_embeddings: (batch_size, top_k, embed_dim) - retrieved caption embeddings
+        
+        Returns:
+            (batch_size, embed_dim) - aggregated embedding combined with query
+        """
+        if self.aggregation_type == "mean":
+            # Standard average pooling (best according to paper)
+            aggregated = retrieved_embeddings.mean(dim=1)  # (batch_size, embed_dim)
+            
+        elif self.aggregation_type == "max":
+            # Max pooling
+            aggregated = retrieved_embeddings.max(dim=1)[0]  # (batch_size, embed_dim)
+            
+        elif self.aggregation_type == "sum_norm":
+            # Sum of L2-normalized features followed by L2-norm
+            # Normalize each retrieved embedding
+            retrieved_normalized = F.normalize(retrieved_embeddings, p=2, dim=2)  # (batch_size, top_k, embed_dim)
+            # Sum across top_k
+            summed = retrieved_normalized.sum(dim=1)  # (batch_size, embed_dim)
+            # L2-normalize the result
+            aggregated = F.normalize(summed, p=2, dim=1)  # (batch_size, embed_dim)
+            
+        elif self.aggregation_type == "attention":
+            # Learnable attention weights (for comparison)
+            attn_scores = self.attention_proj(retrieved_embeddings)  # (batch_size, top_k, 1)
+            attn_weights = F.softmax(attn_scores, dim=1)  # (batch_size, top_k, 1)
+            aggregated = (retrieved_embeddings * attn_weights).sum(dim=1)  # (batch_size, embed_dim)
+        
+        else:
+            raise ValueError(f"Unknown aggregation_type: {self.aggregation_type}")
+        
+        # Combine aggregated retrieval with query image embedding
+        # Simple addition (you could also try concatenation + projection)
+        augmented = query_embedding + aggregated
+        
+        return augmented
+
 class RetrievalAugmentedTransformer(ImageCaptioningModel):
-    """"""
+    """
+    Retrieval-Augmented Transformer for image captioning.
+    Retrieves similar captions and aggregates them to augment the input image embedding.
+    """
+    def __init__(
+        self, 
+        embed_dim: int,
+        aggregation_type: Literal["mean", "max", "sum_norm", "attention"] = "mean", # mean is the best method in the paper
+        *args, 
+        **kwargs
+    ) -> None:
+        """
+        Args:
+            embed_dim: Dimension of image embeddings (e.g., 512 for CLIP)
+            aggregation_type: Method to aggregate retrieved embeddings. 
+                "mean" (default) performs best according to the paper.
+            *args, **kwargs: Arguments passed to ImageCaptioningModel
+        """
+        super().__init__(*args, **kwargs)
+        self.aggregator = RetrievalAggregator(embed_dim, aggregation_type)
+
+    def forward(
+        self,
+        db_store: Store,
+        top_i: int, # number of similar images to retrieve, not included in paper
+        top_k: int, # number of captions to retrieve, according to the paper, k=10 or k=20 works well
+        caption_token_ids: torch.Tensor,
+        image_embeddings: torch.Tensor,
+        attention_mask: torch.Tensor | None = None,
+        labels: torch.Tensor | None = None,
+    ) -> tuple | CausalLMOutputWithCrossAttentions:
+        """
+        Forward pass with retrieval augmentation.
+        Retrieves top-k similar captions and augments the image embeddings.
+        """
+        batch_size = image_embeddings.shape[0]
+
+        # Retrieve caption embeddings for each image in batch
+        all_retrieved_embeddings = []
+        for i in range(batch_size):
+            single_embedding = image_embeddings[i:i+1]
+
+            filenames_with_scores = retrieve_images_by_vector_similarity(
+                db_store=db_store,
+                query_embedding_vector=single_embedding,
+                top_i=top_i,
+            )
+            
+            caption_embeds = get_caption_embeddings(
+                db_store=db_store,
+                top_k=top_k,
+                filenames=[filename for filename, _ in filenames_with_scores],
+            )
+            all_retrieved_embeddings.append(caption_embeds)
+        
+        # Stack: (batch_size, top_k, embed_dim)
+        retrieved_embeddings = torch.stack(all_retrieved_embeddings, dim=0)
+        
+        # Aggregate retrieved embeddings and combine with query
+        augmented_embeddings = self.aggregator(image_embeddings, retrieved_embeddings)
+        
+        # Pass augmented embeddings to parent class forward
+        return super().forward(
+            caption_token_ids=caption_token_ids,
+            image_embeddings=augmented_embeddings,
+            attention_mask=attention_mask,
+            labels=labels,
+        )
+    
+    def generate(
+        self,
+        db_store: Store,
+        top_k: int,
+        top_i: int,
+        image_embeddings: torch.Tensor,
+        max_length: int = 50,
+        temperature: float = 1.0,
+        top_p: float = 0.9,
+        stop_token_id: int = 50256,
+    ) -> torch.Tensor:
+        """
+        Generate captions with retrieval augmentation.
+        """
+        batch_size = image_embeddings.shape[0]
+        
+        # Retrieve caption embeddings for each image in batch
+        all_retrieved_embeddings = []
+        for i in range(batch_size):
+            single_embedding = image_embeddings[i:i+1]
+
+            # Convert this to a numpy array for Objectbox to be able to search for nearest neighbors
+            query_vector_for_db = single_embedding.detach().cpu().numpy()
+
+            filenames_with_scores = retrieve_images_by_vector_similarity(
+                db_store=db_store,
+                query_embedding_vector=query_vector_for_db,
+                top_i=top_i,
+            )
+            
+            caption_embeds = get_caption_embeddings(
+                db_store=db_store,
+                top_k=top_k,
+                filenames=[filename for filename, _ in filenames_with_scores],
+            )
+            all_retrieved_embeddings.append(caption_embeds)
+        
+        # Stack: (batch_size, top_k, embed_dim)
+        retrieved_embeddings = torch.stack(all_retrieved_embeddings, dim=0)
+        
+        # Aggregate retrieved embeddings and combine with query
+        augmented_embeddings = self.aggregator(image_embeddings, retrieved_embeddings)
+        
+        # Generate using parent class method
+        return super().generate(augmented_embeddings, max_length, temperature, top_p, stop_token_id)

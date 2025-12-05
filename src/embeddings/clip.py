@@ -74,8 +74,7 @@ def extract_clip_embedding_from_image(
         return image_features.squeeze(
             0
         )  # Remove batch dimension; shape (embedding_dim,)
-
-
+    
 def extract_clip_embeddings(
     image_dir: str,
     output_path: str,

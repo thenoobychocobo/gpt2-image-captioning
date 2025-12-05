@@ -13,9 +13,9 @@ from objectbox import (
     VectorDistanceType,
 )
 
-from database.config import (
+from src.database.config import (
     IMAGE_EMBEDDING_DIMENSIONS,
-    TEXT_EMBEDDING_DIMENSIONS,
+    CAPTION_EMBEDDING_DIMENSIONS,
     INDEXING_SEARCH_COUNT,
     NEIGHBORS_PER_NODE,
     NORMALIZE_EMBEDDINGS,
@@ -24,10 +24,11 @@ from database.config import (
 @Entity()
 class Image:
     """
-    Represents an image in the dataset with its text and image embedding vector.
+    Represents an image in the dataset with its image embedding vector.
     """
 
     id = Id()
+    file_name = str
     image_embedding_vector = Float32Vector(
         index=HnswIndex(
             dimensions=IMAGE_EMBEDDING_DIMENSIONS,
@@ -38,9 +39,19 @@ class Image:
             indexing_search_count=INDEXING_SEARCH_COUNT,
         )
     )
-    text_embedding_vector = Float32Vector(
+
+@Entity()
+class Caption:
+    """
+    Represents a caption in the dataset with reference to image embedding vector.
+    """
+
+    id = Id()
+    file_name = int
+    caption_id = int
+    caption_embedding_vector = Float32Vector(
         index=HnswIndex(
-            dimensions=TEXT_EMBEDDING_DIMENSIONS,
+            dimensions=CAPTION_EMBEDDING_DIMENSIONS,
             distance_type=VectorDistanceType.DOT_PRODUCT
             if NORMALIZE_EMBEDDINGS
             else VectorDistanceType.EUCLIDEAN,
@@ -48,4 +59,4 @@ class Image:
             indexing_search_count=INDEXING_SEARCH_COUNT,
         )
     )
-    similarity_score = Float64()  # Store similarity scores between text and image embeddings
+    similarity_scores = Float64()  # Store similarity score of the captions to the source image

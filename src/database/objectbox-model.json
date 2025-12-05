@@ -1,0 +1,55 @@
+{
+  "_note1": "KEEP THIS FILE! Check it into a version control system (VCS) like git.",
+  "_note2": "ObjectBox manages crucial IDs for your object model. See docs for details.",
+  "_note3": "If you have VCS merge conflicts, you must resolve them according to ObjectBox docs.",
+  "modelVersionParserMinimum": 5,
+  "entities": [
+    {
+      "id": "1:8816852329717078749",
+      "name": "Image",
+      "lastPropertyId": "2:8717071057143668756",
+      "properties": [
+        {
+          "id": "1:8710295205478752773",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:8717071057143668756",
+          "name": "image_embedding_vector",
+          "type": 28,
+          "flags": 8,
+          "indexId": "1:7641506991159476141"
+        }
+      ]
+    },
+    {
+      "id": "2:8017912994754071301",
+      "name": "Caption",
+      "lastPropertyId": "3:7516892878094139557",
+      "properties": [
+        {
+          "id": "1:8565142540261329310",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:7312512220775647172",
+          "name": "caption_embedding_vector",
+          "type": 28,
+          "flags": 8,
+          "indexId": "2:2447440693611314583"
+        },
+        {
+          "id": "3:7516892878094139557",
+          "name": "similarity_scores",
+          "type": 8
+        }
+      ]
+    }
+  ],
+  "lastEntityId": "2:8017912994754071301",
+  "lastIndexId": "2:2447440693611314583"
+}

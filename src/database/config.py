@@ -10,10 +10,10 @@ Holds configuration constants for the indexing pipeline.
 NORMALIZE_EMBEDDINGS: bool = True
 
 #: Dimensionality of the CLIP image embedding vectors
-EMBEDDING_DIMENSIONS: int = 768
+IMAGE_EMBEDDING_DIMENSIONS: int = 512
 
-#: Dimensionality of the CLIP text embedding vectors
-TEXT_EMBEDDING_DIMENSIONS: int = 512
+#: Dimensionality of the CLIP caption embedding vectors
+CAPTION_EMBEDDING_DIMENSIONS: int = 512
 
 #: Maximum number of connections per node in the HNSW graph.
 #: Higher number increases the graph connectivity which can lead to better results, but higher resource usage.
