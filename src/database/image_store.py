@@ -18,6 +18,9 @@ OBJECTBOX_MODEL = Model()
 OBJECTBOX_MODEL.entity(Image)
 OBJECTBOX_MODEL.entity(Caption)
 
+# 5 GB size limit for the database
+DATABASE_SIZE_LIMIT_KB = 1024 * 1024 * 5
+
 def create_objectbox_store(
     db_directory: str,
     clear_db: bool = False,
@@ -39,7 +42,7 @@ def create_objectbox_store(
 
         shutil.rmtree(db_directory)
 
-    db_store = Store(model=OBJECTBOX_MODEL, directory=db_directory)
+    db_store = Store(model=OBJECTBOX_MODEL, directory=db_directory, max_db_size_in_kb=DATABASE_SIZE_LIMIT_KB)
     return db_store
 
 # TODO: top-k images is not equivalent to top k images, might need different handling
