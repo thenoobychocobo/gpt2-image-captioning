@@ -1,5 +1,9 @@
+# MacOS
+.DS_Store
+
 # Project specific
 notebooks/examples/ 
+coco_data/
 data/
 checkpoints/
 
