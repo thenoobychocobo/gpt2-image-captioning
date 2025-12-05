@@ -731,8 +731,6 @@ dev = [
     { name = "ruff" },
 ]
 dinov3 = [
-    { name = "omegaconf" },
-    { name = "submitit" },
     { name = "termcolor" },
     { name = "torchmetrics" },
 ]
@@ -755,8 +753,6 @@ dev = [
     { name = "ruff", specifier = ">=0.14.6" },
 ]
 dinov3 = [
-    { name = "omegaconf", specifier = ">=2.3.0" },
-    { name = "submitit", specifier = ">=1.5.3" },
     { name = "termcolor", specifier = ">=3.2.0" },
     { name = "torchmetrics", specifier = ">=1.8.2" },
 ]
