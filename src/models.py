@@ -467,7 +467,7 @@ class ImageCaptioningModel(nn.Module):
         # Return generated tokens (to be passed to a tokenizer for decoding to text)
         # TODO: Use self.tokenizer to decode directly
         return torch.cat(generated_tokens, dim=1)  # (batch_size, generated_length)
-    
+
     def save_parameters(self, output_path: str) -> None:
         """
         Saves all model parameters and buffers except for the GPT-2 weights if they are frozen.
@@ -481,24 +481,28 @@ class ImageCaptioningModel(nn.Module):
         trainable_param_names = {
             name for name, param in self.named_parameters() if param.requires_grad
         }
-        
+
         # Filter state dict to include only:
         # 1. Trainable parameters (already in trainable_param_names set)
         # 2. Buffers (e.g., running mean/var in BatchNorm layers) belonging to trainable modules
         # We are essentially saving everything except for GPT-2 weights if they are frozen.
         keys_to_save = {}
-        
+
         for name, param in self.state_dict().items():
             if name in trainable_param_names:
                 keys_to_save[name] = param
             # If we froze GPT, we will save everything NOT inside 'gpt'
             elif not name.startswith("gpt."):
                 keys_to_save[name] = param
-                
-        print(f"Saving {len(keys_to_save)} trainable parameters and buffers to {output_path}.")
+
+        print(
+            f"Saving {len(keys_to_save)} trainable parameters and buffers to {output_path}."
+        )
         torch.save(keys_to_save, output_path)
-        
-    def load_saved_parameters(self, checkpoint_path: str, device: torch.device | None = None) -> None:
+
+    def load_saved_parameters(
+        self, checkpoint_path: str, device: torch.device | None = None
+    ) -> None:
         """
         Loads a state dictionary (containing saved model parameters) from the specified checkpoint path.
         This is useful for loading only the trained parameters and buffers into the model (see `save_parameters`).
@@ -510,15 +514,16 @@ class ImageCaptioningModel(nn.Module):
         # Load the state dictionary from the checkpoint (may not include GPT-2 weights)
         state_dict = torch.load(checkpoint_path, map_location=device)
         keys = self.load_state_dict(state_dict, strict=False)
-        
+
         # Validation: check for unexpected keys
         if keys.unexpected_keys:
-            raise ValueError(f"Unexpected keys found in the checkpoint: {keys.unexpected_keys}")
-        
+            raise ValueError(
+                f"Unexpected keys found in the checkpoint: {keys.unexpected_keys}"
+            )
+
         # Validation: check that any missing keys are only from frozen GPT weights and not from anything else
         non_gpt_missing = [k for k in keys.missing_keys if not k.startswith("gpt.")]
         if non_gpt_missing:
-            raise ValueError(f"Missing keys found in the checkpoint that are not from frozen GPT weights: {non_gpt_missing}")
-        
-        
-        
+            raise ValueError(
+                f"Missing keys found in the checkpoint that are not from frozen GPT weights: {non_gpt_missing}"
+            )
