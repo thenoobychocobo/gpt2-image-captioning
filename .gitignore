@@ -1,11 +1,11 @@
-# MacOS
-.DS_Store
-
 # Project specific
 notebooks/examples/ 
-data/
+dino_weights/
 coco_data/
 checkpoints/
+
+# MacOS
+.DS_Store
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
