@@ -193,7 +193,7 @@ class CocoDataset(Dataset):
 
         # Tokenize caption text
         encoding = self.tokenizer(
-            caption_data.caption_text,
+            caption_data.caption_text + self.tokenizer.eos_token, # Explicitly add EOS token
             max_length=self.max_length,
             padding="max_length",
             truncation=True,
@@ -203,9 +203,24 @@ class CocoDataset(Dataset):
         # Remove batch dimension added by tokenizer: (1, max_length) to (max_length,)
         token_ids = encoding.input_ids.squeeze(0)
         attention_mask = encoding.attention_mask.squeeze(0)
+        
+        # Create labels as a copy of token ids
+        labels = token_ids.clone()
+        
+        # Replace padding token ids in labels with -100 to ignore them in loss computation
+        labels[attention_mask == 0] = -100
+        
+        # NOTE: The EOS token that was explicitly added will have an attention mask value of 1
+        # This is the case even if the GPT-2's tokenizer's pad_token is set to be its eos_token (by standard convention).
+        # The tokenizer will still treat the explicitly added EOS token as a valid token (attention mask = 1),
+        # while any padding tokens added for max_length will have attention mask = 0, even though they share the same token ID.
+        # In this way, the model learns to predict the EOS token, but not the padding tokens.
+        # Similarly, with our code above, the EOS token will have its label preserved (and will contribute to loss computation), 
+        # while padding tokens will have label -100 (ignored by loss computation).
 
         return {
             "token_ids": token_ids,
+            "labels": labels,
             "image_embedding": image_embedding,
             "attention_mask": attention_mask,
             "caption_text": caption_data.caption_text,

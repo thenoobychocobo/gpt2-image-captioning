@@ -283,6 +283,7 @@ class ImageCaptioningModel(nn.Module):
 
         # Handle Labels (labels simply denote which tokens to compute loss on)
         if labels is not None:
+            # Labels should be provided to mark padding tokens that should be ignored in loss computation (set to -100)
             # Add dummy labels for the prefix tokens so that we don't train on them
             # We want to compute loss only on the caption tokens, GPT-2 should not be trained to predict the prefix tokens
             # NOTE: The mapping network is still trained to produce good prefix tokens via loss/error signal from the generated caption tokens
