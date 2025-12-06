@@ -9,7 +9,6 @@ from src.database.entities import Image, Caption
 from src.database.image_store import create_objectbox_store
 import gc
 
-# --- OPTIMIZATION 1: The "Safe Put" Helper ---
 def safe_put(box: Box, entities: list, chunk_size: int = 9000):
     """
     Bypasses ObjectBox's 10,000 item limit per put() call.
@@ -20,7 +19,8 @@ def safe_put(box: Box, entities: list, chunk_size: int = 9000):
     if total <= chunk_size:
         box.put(entities)
     else:
-        # Slice list into safe chunks (e.g., 0-9000, 9000-18000...)
+        # Slice list into safe chunks (e.g., 0-9000, 9000-18000...).
+        # This is because ObjectBox put() crashes if >10,000 items are given at once.
         for i in range(0, total, chunk_size):
             box.put(entities[i : i + chunk_size])
 
@@ -32,17 +32,7 @@ def run_indexing_pipeline(
 ) -> None:
     """Run the indexing pipeline"""
 
-    # --- OPTIMIZATION 2: WSL Filesystem Check ---
-    # Writing database files to /mnt/c/ from WSL is 50x-100x slower than native Linux.
-    if "/mnt/c/" in db_directory or "/mnt/d/" in db_directory:
-        print("\n" + "!"*60)
-        print("CRITICAL PERFORMANCE WARNING:")
-        print(f"You are saving the DB to a Windows mount: {db_directory}")
-        print("This causes extreme slowness (IO Bottleneck).")
-        print("SOLUTION: Change db_directory to a Linux path like './objectbox_db'")
-        print("!"*60 + "\n")
-        # I am not stopping the script, but I strongly advise you to kill it and change the path.
-
+    print("Starting indexing pipeline...")
     # Initialize ObjectBox store
     db_store = create_objectbox_store(db_directory=db_directory)
     image_box: Box = db_store.box(Image)
@@ -53,20 +43,19 @@ def run_indexing_pipeline(
     image_data = torch.load(image_embedding_file_path, weights_only=True) 
     caption_data = torch.load(caption_embedding_file_path, weights_only=False)
 
-    # --- OPTIMIZATION 3: Global Numpy Conversion ---
     print("Converting Image tensors to NumPy...")
-    # Convert all images to Float32 NumPy array once
+    # Convert all images to Float32 NumPy array once. Embeddings are already normalized.
     all_image_embeddings = image_data['embeddings'].numpy().astype(np.float32)
         
     # Create filename map
     filename_to_index = {filename: idx for idx, filename in enumerate(image_data['filenames'])}
 
-    # ⭐ ACTION: DELETE the original PyTorch tensor to free up space
+    # DELETE the original PyTorch tensor to free up space
     del image_data['embeddings']
     del image_data['filenames'] # Filenames were copied to filename_to_index
     del image_data
 
-    # ⭐ ACTION: Pre-clean the captions for faster iteration and reduced memory
+    # Pre-clean the captions for faster iteration and reduced memory
     print("Pre-converting caption tensors...")
     for item in tqdm(caption_data, desc="Pre-converting"):
         for cap in item['embeddings']:
@@ -74,61 +63,40 @@ def run_indexing_pipeline(
             if torch.is_tensor(cap['embedding']):
                 cap['embedding'] = cap['embedding'].numpy().astype(np.float32)
 
-    gc.collect() # Force Python to clean up
-
-    # --- OPTIMIZATION 4: Global Normalization ---
-    print("Normalizing image embeddings...")
-    # Vectorized normalization of 100k+ images in one go (uses C-level BLAS)
-    norms = np.linalg.norm(all_image_embeddings, axis=1, keepdims=True)
-    norms[norms == 0] = 1e-10 
-    image_embeddings_normalized = all_image_embeddings / norms
+    # Force garbage collection to free up memory
+    gc.collect()
 
     images_to_add = []
     captions_to_add = []
 
     print(f"Processing entities (Batch Size: {batch_size})...")
     
-    # TODO: for now, we will only index around 10000 training images. There is a bottleneck that needs to be fixed
-    i = 0
-    # Iterate directly over the list (fastest iteration method in Python)
     for caption_entry in tqdm(caption_data, desc="Indexing"):
-        i += 1
-        if i % 10000 == 0:
-            print(f"Processed {i} caption entries...exiting for test")
-            break  # TEMPORARY LIMIT for testing purposes
-        
+
         filename = caption_entry['filenames']
         
-        # O(1) Dictionary Lookup
         image_idx = filename_to_index.get(filename)
         if image_idx is None:
             continue
             
-        # Fetch pre-calculated arrays
-        current_image_norm = image_embeddings_normalized[image_idx]
-        current_image_raw = all_image_embeddings[image_idx]
+        # Fetch pre-normalized embeddings from the .pt files
+        current_image_embedding = all_image_embeddings[image_idx]
         current_caps = caption_entry['embeddings']
         
-        # --- OPTIMIZATION 5: Vectorized Caption Processing ---
-        # 1. Extract raw embeddings into a 2D NumPy Matrix
-        cap_vecs_raw = np.array([x['embedding'] for x in current_caps], dtype=np.float32)
+        # Extract embeddings into a 2D NumPy Matrix (already normalized)
+        cap_vecs = np.array([x['embedding'] for x in current_caps], dtype=np.float32)
         cap_ids = [x['caption_id'] for x in current_caps]
 
-        # 2. Normalize Matrix (Single CPU Operation)
-        cap_norms = np.linalg.norm(cap_vecs_raw, axis=1, keepdims=True)
-        cap_norms[cap_norms == 0] = 1e-10
-        cap_vecs_norm = cap_vecs_raw / cap_norms
+        # Dot Product (Matrix x Vector) for Similarity - no normalization needed
+        sim_scores = np.dot(cap_vecs, current_image_embedding)
 
-        # 3. Dot Product (Matrix x Vector) for Similarity
-        sim_scores = np.dot(cap_vecs_norm, current_image_norm)
-
-        # 4. Bulk convert matrix to Python list (faster than row-by-row .tolist())
-        cap_vecs_list = cap_vecs_raw.tolist()
+        # Bulk convert matrix to Python list (faster than row-by-row .tolist())
+        cap_vecs_list = cap_vecs.tolist()
 
         # Create Image Object
         image_entity = Image(
             file_name=filename,
-            image_embedding_vector=current_image_raw.tolist(), 
+            image_embedding_vector=current_image_embedding.tolist(), 
         )
         images_to_add.append(image_entity)
 
@@ -141,7 +109,7 @@ def run_indexing_pipeline(
                 similarity_scores=float(sim_scores[i]),
             ))
 
-        # --- OPTIMIZATION 6: Transactional Bulk Insert ---
+        # Transactional Bulk Insert
         if len(images_to_add) >= batch_size:
             # Open ONE transaction for the whole batch
             with db_store.write_tx():

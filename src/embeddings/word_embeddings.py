@@ -83,20 +83,20 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Get file names from embeddings file
-    embedding_file = "/mnt/c/Users/hoxia/Documents/NLDeeznuts/gpt2-image-captioning/data/data/coco/embeddings/train_val_clip_embeddings.pt"
+    embedding_file = "file_path_to_train_val_clip_embeddings.pt"
     file_names = load_image_embeddings_file_names(embedding_file)
 
     # Load CLIP Model and Processor
     clip_model, clip_processor = load_clip_model(device=device)
 
     # Load captions annotations
-    annotations_file = "/mnt/c/Users/hoxia/Documents/NLDeeznuts/gpt2-image-captioning/data/data/coco/annotations/captions_train2014.json"
+    annotations_file = "file_path_to_captions_train2014.json"
     annotations_list = load_captions_annotations(annotations_file)
 
     # Map image IDs to captions
     image_to_captions = map_caption_id_to_caption(annotations_list)
 
-    # CHANGED: Collect all captions first for batch processing
+    # Collect all captions first for batch processing
     all_captions_data = []
     for filename in file_names:
         image_id = get_image_id_from_filename(filename)
@@ -114,22 +114,22 @@ if __name__ == "__main__":
 
     print(f"Total captions to process: {len(all_captions_data)}")
 
-    # CHANGED: Process captions in batches
+    # Process captions in batches
     batch_size = 32  # ADDED: Batch size for efficiency
     processed_embeddings = {}
     
-    # CHANGED: Batch processing loop with progress bar
+    # Batch processing loop with progress bar
     for i in tqdm(range(0, len(all_captions_data), batch_size), desc="Processing batches"):
         batch = all_captions_data[i:i + batch_size]
         captions = [item['caption'] for item in batch]
         
-        # CHANGED: Process entire batch at once (single GPU call)
-        with torch.no_grad():  # ADDED: Disable gradients for inference
+        # Process entire batch at once
+        with torch.no_grad():
             inputs = clip_processor(text=captions, return_tensors="pt", padding=True, truncation=True).to(device)
             embeddings = clip_model.get_text_features(**inputs)
-            embeddings = embeddings.cpu().numpy()  # CHANGED: Move to CPU once for entire batch
+            embeddings = embeddings.cpu().numpy()
         
-        # CHANGED: Organize embeddings by filename
+        # Organize embeddings by filename
         for j, item in enumerate(batch):
             filename = item['filename']
             if filename not in processed_embeddings:
@@ -140,7 +140,7 @@ if __name__ == "__main__":
                 'embedding': embeddings[j]
             })
 
-    # CHANGED: Convert to final structure
+    # Convert to final structure
     processed_data = [
         {'filenames': filename, 'embeddings': embeddings}
         for filename, embeddings in processed_embeddings.items()
@@ -149,7 +149,7 @@ if __name__ == "__main__":
     print(f"Processed {len(processed_data)} images")
 
     # Save the processed data
-    output_path = "/mnt/c/Users/hoxia/Documents/NLDeeznuts/gpt2-image-captioning/data/data/coco/embeddings/caption_embeddings_structured.pt"
+    output_path = "file_path_to_caption_embeddings_structured.pt"
     torch.save(processed_data, output_path)
     print(f"Saved to {output_path}")
 
