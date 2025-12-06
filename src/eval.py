@@ -13,6 +13,7 @@ import json
 import os
 from dataclasses import dataclass
 from typing import Any
+from objectbox import Store
 
 import torch
 from pycocoevalcap.bleu.bleu import Bleu
@@ -228,6 +229,83 @@ def generate_and_evaluate(
 
     return predictions, metrics
 
+def generate_and_evaluate_rat(
+    model: torch.nn.Module,
+    db_store: Store,
+    top_k: int,
+    top_i: int,
+    dataset: torch.utils.data.Dataset,
+    annotations_path: str,
+    batch_size: int = 32,
+    num_workers: int = 4,
+    max_length: int = 50,
+    temperature: float = 1.0,
+    top_p: float = 0.9,
+    device: torch.device | None = None,
+) -> tuple[list[dict[str, Any]], EvalMetrics]:
+    """
+    Generate captions for a dataset and compute evaluation metrics.
+    This is for the Retrieval-Augmented Transformer (RAT) model.
+
+    Args:
+        model: The trained ImageCaptioningModel.
+        dataset: CocoDataset instance to evaluate on.
+        annotations_path: Path to ground truth annotations JSON.
+        batch_size: Batch size for generation.
+        num_workers: Number of CPU workers for data loading.
+        max_length: Maximum length of generated captions.
+        temperature: Sampling temperature.
+        top_p: Nucleus sampling probability threshold.
+        device: Device to run inference on.
+
+    Returns:
+        Tuple of (predictions list, EvalMetrics).
+    """
+    device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = model.to(device)
+    model.eval()
+
+    dataloader = DataLoader(
+        dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers
+    )
+
+    predictions: list[dict[str, Any]] = []
+    seen_image_ids: set[int] = set()
+
+    with torch.no_grad():
+        for batch in tqdm(dataloader, desc="Generating captions"):
+            image_ids: torch.Tensor = batch["image_id"]
+            image_embeddings: torch.Tensor = batch["image_embedding"].to(device)
+
+            # Generate captions
+            generated_ids = model.generate(
+                db_store=db_store,
+                top_k=top_k,
+                top_i=top_i,
+                image_embeddings=image_embeddings,
+                max_length=max_length,
+                temperature=temperature,
+                top_p=top_p,
+            )
+
+            # Decode generated captions
+            tokenizer = dataset.tokenizer
+            generated_captions = tokenizer.batch_decode(
+                generated_ids,
+                skip_special_tokens=True,  # strips away special tokens like <eos>
+            )
+
+            # Store results (avoid duplicates - one caption per image)
+            for img_id, caption in zip(image_ids, generated_captions):
+                img_id_int = img_id.item()
+                if img_id_int not in seen_image_ids:
+                    predictions.append({"image_id": img_id_int, "caption": caption})
+                    seen_image_ids.add(img_id_int)
+
+    # Compute metrics
+    metrics = evaluate_captions(predictions, annotations_path)
+
+    return predictions, metrics
 
 def evaluate_epoch(
     model: torch.nn.Module,

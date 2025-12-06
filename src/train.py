@@ -357,7 +357,7 @@ def train_rat(
                 caption_token_ids=token_ids,
                 image_embeddings=image_embeddings,
                 attention_mask=attention_mask,
-                labels=token_ids,
+                labels=labels,
             )
 
             # SCALE LOSS: Divide the loss by the accumulation steps

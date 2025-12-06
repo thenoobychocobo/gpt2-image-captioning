@@ -1,13 +1,13 @@
+from typing import Literal
+from objectbox import Store
+
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
 from transformers import GPT2LMHeadModel, GPT2Tokenizer
 from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions
 
-from objectbox import Store
 from src.database.image_store import retrieve_images_by_vector_similarity, get_caption_embeddings
-from src.database.entities import Image
-
 from src.utils import load_gpt2_tokenizer
 
 class MLPMappingNetwork(nn.Module):
