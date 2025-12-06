@@ -45,7 +45,6 @@ def create_objectbox_store(
     db_store = Store(model=OBJECTBOX_MODEL, directory=db_directory, max_db_size_in_kb=DATABASE_SIZE_LIMIT_KB)
     return db_store
 
-# TODO: top-k images is not equivalent to top k images, might need different handling
 def retrieve_images_by_vector_similarity(
     db_store: Store, query_embedding_vector: np.ndarray, top_i: int
 ) -> list[tuple[str, float]]:
