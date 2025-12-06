@@ -101,6 +101,17 @@ def load_gpt2_tokenizer() -> GPT2Tokenizer:
     )  # Set padding token to EOS token (GPT-2 has no dedicated pad token)
     return tokenizer
 
+def get_max_workers(
+    batch_size: int,
+) -> int:
+    """Get the maximum number of workers for multi-thread operations based on CPU cores.
+
+    Returns:
+        int: Number of workers to use.
+    """
+    max_workers = min(os.cpu_count() * 4, batch_size)
+    return max_workers
+
 
 class ImageDirectoryDataset(Dataset):
     """

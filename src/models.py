@@ -1,5 +1,6 @@
 from typing import Literal
 from objectbox import Store
+from concurrent.futures import ThreadPoolExecutor
 
 import torch
 import torch.nn as nn
@@ -7,7 +8,7 @@ from torch.nn import functional as F
 from transformers import GPT2LMHeadModel, GPT2Tokenizer
 from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions
 
-from src.database.image_store import retrieve_images_by_vector_similarity, get_caption_embeddings
+from src.database.image_store import retrieve_images_by_vector_similarity, get_caption_embeddings, retrieve_for_single_embedding
 from src.utils import load_gpt2_tokenizer
 
 class MLPMappingNetwork(nn.Module):
@@ -555,6 +556,7 @@ class RetrievalAugmentedTransformer(ImageCaptioningModel):
     def __init__(
         self, 
         embed_dim: int,
+        max_workers: int = 4,
         aggregation_type: Literal["mean", "max", "sum_norm", "attention"] = "mean", # mean is the best method in the paper
         *args, 
         **kwargs
@@ -567,6 +569,7 @@ class RetrievalAugmentedTransformer(ImageCaptioningModel):
             *args, **kwargs: Arguments passed to ImageCaptioningModel
         """
         super().__init__(*args, **kwargs)
+        self.max_workers = max_workers
         self.aggregator = RetrievalAggregator(embed_dim, aggregation_type)
 
     def forward(
@@ -587,25 +590,40 @@ class RetrievalAugmentedTransformer(ImageCaptioningModel):
 
         # Retrieve caption embeddings for each image in batch
         all_retrieved_embeddings = []
-        for i in range(batch_size):
-            single_embedding = image_embeddings[i:i+1]
 
-            # Convert this to a numpy array for Objectbox to be able to search for nearest neighbors
-            query_vector_for_db = single_embedding.squeeze(0).tolist()
+        # ObjectBox is thread-safe, so we can parallelize retrievals from same store
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:  # Adjust workers based on I/O
+            futures = [
+                executor.submit(
+                    retrieve_for_single_embedding, 
+                    image_embeddings[i:i+1], 
+                    db_store, 
+                    top_i, 
+                    top_k, 
+                    image_embeddings.device
+                )
+                for i in range(batch_size)
+            ]
+            all_retrieved_embeddings = [f.result() for f in futures]
+        # for i in range(batch_size):
+        #     single_embedding = image_embeddings[i:i+1]
 
-            filenames_with_scores = retrieve_images_by_vector_similarity(
-                db_store=db_store,
-                query_embedding_vector=query_vector_for_db,
-                top_i=top_i,
-            )
+        #     # Convert this to a numpy array for Objectbox to be able to search for nearest neighbors
+        #     query_vector_for_db = single_embedding.squeeze(0).tolist()
+
+        #     filenames_with_scores = retrieve_images_by_vector_similarity(
+        #         db_store=db_store,
+        #         query_embedding_vector=query_vector_for_db,
+        #         top_i=top_i,
+        #     )
             
-            caption_embeds = get_caption_embeddings(
-                db_store=db_store,
-                top_k=top_k,
-                filenames=[filename for filename, _ in filenames_with_scores],
-            )
-            caption_embeds = torch.from_numpy(caption_embeds).to(image_embeddings.device)
-            all_retrieved_embeddings.append(caption_embeds)
+        #     caption_embeds = get_caption_embeddings(
+        #         db_store=db_store,
+        #         top_k=top_k,
+        #         filenames=[filename for filename, _ in filenames_with_scores],
+        #     )
+        #     caption_embeds = torch.from_numpy(caption_embeds).to(image_embeddings.device)
+        #     all_retrieved_embeddings.append(caption_embeds)
         
         # Stack: (batch_size, top_k, embed_dim)
         retrieved_embeddings = torch.stack(all_retrieved_embeddings, dim=0)

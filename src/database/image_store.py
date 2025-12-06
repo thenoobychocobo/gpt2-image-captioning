@@ -6,6 +6,7 @@ adding documents and images, and performing similarity searches.
 """
 
 import os
+import torch
 
 import numpy as np
 from objectbox import Box, Model, Store
@@ -112,3 +113,19 @@ def get_caption_embeddings(
     caption_embeddings = np.array([np.array(caption.caption_embedding_vector) for caption in selected_captions])
     
     return caption_embeddings
+
+def retrieve_for_single_embedding(single_embedding, db_store, top_i, top_k, device):
+    query_vector_for_db = single_embedding.squeeze(0).tolist()
+    
+    filenames_with_scores = retrieve_images_by_vector_similarity(
+        db_store=db_store,
+        query_embedding_vector=query_vector_for_db,
+        top_i=top_i,
+    )
+    
+    caption_embeds = get_caption_embeddings(
+        db_store=db_store,
+        top_k=top_k,
+        filenames=[filename for filename, _ in filenames_with_scores],
+    )
+    return torch.from_numpy(caption_embeds).to(device)
