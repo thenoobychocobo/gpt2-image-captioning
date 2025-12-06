@@ -8,7 +8,7 @@ from src.utils import ImageDirectoryDataset
 
 
 def load_clip_model(
-    model_name: str = "openai/clip-vit-base-patch32",
+    model_name: str = "openai/clip-rn50x4",
     device: torch.device | None = None,
 ) -> tuple[CLIPModel, CLIPProcessor]:
     """
@@ -16,7 +16,7 @@ def load_clip_model(
     Moves the model to the specified device and sets it to evaluation mode.
 
     Args:
-        model_name (str, optional): HuggingFace model ID for CLIP. Defaults to "openai/clip-vit-base-patch32".
+        model_name (str, optional): HuggingFace model ID for CLIP. Defaults to "openai/clip-rn50x4".
         device (torch.device | None, optional): Device to run the model on. Defaults to None (auto-detect).
 
     Returns:
