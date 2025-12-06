@@ -18,7 +18,7 @@ def train(
     batch_size: int,
     num_epochs: int,
     num_workers: int = 4,
-    learning_rate: float = 2e-5,
+    learning_rate: float = 1e-4,
     num_warmup_steps: int = 0,
     save_every_epoch: int = 5,
     device: torch.device | None = None,
@@ -29,7 +29,7 @@ def train(
     eval_every_epoch: int = 1,
     eval_batch_size: int | None = None,
     eval_max_length: int = 50,
-    eval_temperature: float = 1.0,
+    eval_temperature: float = 0.0,
     eval_top_p: float = 0.9,
 ) -> dict[str, Any]:
     """
@@ -42,7 +42,7 @@ def train(
         batch_size (int): The batch size for training.
         num_epochs (int): The number of training epochs.
         num_workers (int, optional): The number of CPU threads for data loading. Should be 0 on Windows. Defaults to 4.
-        learning_rate (float, optional): The learning rate for the optimizer. Defaults to 2e-5.
+        learning_rate (float, optional): The learning rate for the optimizer. Defaults to 1e-4.
         num_warmup_steps (int, optional): The number of warmup steps for the learning rate scheduler.
             Learning rate increases linearly from 0 to specified value during warmup. Defaults to 0.
         save_every_epoch (int, optional): The frequency (in epochs) to save the model checkpoint. Defaults to 5.
@@ -53,7 +53,7 @@ def train(
         eval_every_epoch (int, optional): Frequency of evaluation in epochs. Defaults to 1.
         eval_batch_size (int | None, optional): Batch size for evaluation. Defaults to training batch_size.
         eval_max_length (int, optional): Maximum caption length during generation. Defaults to 50.
-        eval_temperature (float, optional): Sampling temperature for generation. Defaults to 1.0.
+        eval_temperature (float, optional): Sampling temperature for generation. Defaults to 0.0.
         eval_top_p (float, optional): Nucleus sampling probability. Defaults to 0.9.
 
     Returns:
