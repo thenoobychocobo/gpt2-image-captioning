@@ -3,6 +3,7 @@ notebooks/examples/
 dino_weights/
 coco_data/
 checkpoints/
+data/
 
 # MacOS
 .DS_Store
