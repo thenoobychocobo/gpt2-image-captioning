@@ -2,6 +2,7 @@
 notebooks/examples/ 
 data/
 checkpoints/
+vector_db/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
