@@ -79,7 +79,7 @@ def save_eval_metric_curves(
 
     ax2.set_xlabel("Epoch")
     ax2.set_ylabel("Score")
-    ax2.set_title("ROUGE-L, CIDEr") # ax2.set_title("METEOR, ROUGE-L, CIDEr")
+    ax2.set_title("ROUGE-L, CIDEr")  # ax2.set_title("METEOR, ROUGE-L, CIDEr")
     ax2.legend()
     ax2.grid(True)
 

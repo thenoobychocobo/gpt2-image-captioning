@@ -112,7 +112,9 @@ def train(
         for batch_idx, batch in enumerate(progress_bar):
             # Unpack batch and move to device
             token_ids = batch["token_ids"].to(device)
-            labels = batch["labels"].to(device) # padding tokens set to -100 to ignore loss computation
+            labels = batch["labels"].to(
+                device
+            )  # padding tokens set to -100 to ignore loss computation
             image_embeddings = batch["image_embedding"].to(device)
             attention_mask = batch["attention_mask"].to(device)
 
@@ -189,7 +191,9 @@ def train(
                 if val_metrics.cider > best_val_cider:
                     best_val_cider = val_metrics.cider
                     best_epoch = epoch + 1
-                    best_model_path = os.path.join(outputs_dir, f"best_model_epoch_{best_epoch}.pt")
+                    best_model_path = os.path.join(
+                        outputs_dir, f"best_model_epoch_{best_epoch}.pt"
+                    )
                     model.save_parameters(best_model_path)
                     print(
                         f"New best model! CIDEr: {best_val_cider:.4f} (saved to {best_model_path})"

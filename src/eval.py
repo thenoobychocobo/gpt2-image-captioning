@@ -212,7 +212,8 @@ def generate_and_evaluate(
             # Decode generated captions
             tokenizer = dataset.tokenizer
             generated_captions = tokenizer.batch_decode(
-                generated_ids, skip_special_tokens=True
+                generated_ids,
+                skip_special_tokens=True,  # strips away special tokens like <eos>
             )
 
             # Store results (avoid duplicates - one caption per image)

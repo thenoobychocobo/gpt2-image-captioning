@@ -326,7 +326,6 @@ class ImageCaptioningModel(nn.Module):
         max_length: int = 50,
         temperature: float = 1.0,
         top_p: float = 0.9,
-        stop_token_id: int = 50256,
     ) -> torch.Tensor:
         """
         Generate captions autoregressively given image embeddings.
@@ -336,11 +335,13 @@ class ImageCaptioningModel(nn.Module):
             max_length (int, optional): Maximum length of the generated caption. Defaults to 50.
             temperature (float, optional): Sampling temperature for controlling randomness. Defaults to 1.0.
             top_p (float, optional): Nucleus sampling probability threshold. Defaults to 0.9.
-            stop_token_id (int, optional): Token ID at which to stop generation. Defaults to 50256 (GPT-2's <|endoftext|> token ID).
 
         Returns:
             torch.Tensor: Generated caption tokens of shape (batch_size, generated_length)
         """
+
+        # Get the stop token ID (EOS token for GPT-2)
+        stop_token_id = self.tokenizer.eos_token_id
 
         # Set to evaluation mode
         self.eval()  # Will recursively set mapping network and GPT to eval mode
@@ -449,8 +450,10 @@ class ImageCaptioningModel(nn.Module):
                 # An item is finished if it was already finished OR if it just generated the stop token
                 is_finished = torch.logical_or(is_finished, is_current_stop)
 
-                # If a sequence is finished, force its next token to be 0 (padding) to avoid generating nonsense tokens while preserving batch structure
-                next_token_id[is_finished] = 0
+                # If a sequence is finished, force its next token to be EOS token
+                next_token_id[is_finished] = (
+                    stop_token_id  # This will be stripped away later when decoding to text (skip_special_tokens=True)
+                )
 
                 # Track tokens generated
                 generated_tokens.append(next_token_id)
@@ -468,6 +471,16 @@ class ImageCaptioningModel(nn.Module):
         # Return generated tokens (to be passed to a tokenizer for decoding to text)
         # TODO: Use self.tokenizer to decode directly
         return torch.cat(generated_tokens, dim=1)  # (batch_size, generated_length)
+
+    def generate_captions(self, image_embeddings: torch.Tensor, **kwargs) -> list[str]:
+        """
+        Convenience method to generate and decode strings directly.
+        """
+        generated_ids = self.generate(image_embeddings, **kwargs)
+        return self.tokenizer.batch_decode(
+            generated_ids,
+            skip_special_tokens=True,  # Strips away special tokens like <eos>
+        )
 
     def save_parameters(self, output_path: str) -> None:
         """
