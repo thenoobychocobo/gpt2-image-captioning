@@ -23,6 +23,7 @@ def train(
     save_every_epoch: int = 5,
     device: torch.device | None = None,
     outputs_dir: str = "checkpoints",
+    grad_accum_steps: int = 1,
     # Evaluation parameters
     val_dataset: CocoDataset | None = None,
     val_annotations_path: str | None = None,
@@ -118,9 +119,9 @@ def train(
             image_embeddings = batch["image_embedding"].to(device)
             attention_mask = batch["attention_mask"].to(device)
 
-            # Clear gradients
-            optimizer.zero_grad()
-
+            # Clear gradients ONLY when starting a new accumulation cycle
+            # We don't need to call optimizer.zero_grad() here since it's called below
+            
             # Forward pass
             # Model predicts the next token given previous tokens and image embeddings
             # We do not have to shift the token_ids here because the model's forward method handles that internally
@@ -131,21 +132,28 @@ def train(
                 labels=labels,
             )
 
-            # Compute loss and gradients
-            loss = outputs.loss
+            # SCALE LOSS: Divide the loss by the accumulation steps
+            loss = outputs.loss / grad_accum_steps
+            
+            # Compute loss and accumulate gradients
             loss.backward()
+            if (batch_idx + 1) % grad_accum_steps == 0 or (
+                batch_idx + 1 == len(dataloader)
+            ):
+                # Gradient clipping
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
 
-            # Gradient clipping
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+                # Update parameters (optimizer step)
+                optimizer.step()
 
-            # Update parameters
-            optimizer.step()
+                # Scheduler step (update learning rate)
+                scheduler.step()
 
-            # Scheduler step (update learning rate)
-            scheduler.step()
-
-            # Logging
-            batch_loss = loss.item()
+                # Clear accumulated gradients
+                optimizer.zero_grad()
+            
+            # Logging (Use the unscaled loss for logging simplicity)
+            batch_loss = outputs.loss.item()
             current_epoch_loss += batch_loss
             progress_bar.set_postfix(
                 {f"Batch {batch_idx + 1} Loss": f"{batch_loss:.4f}"}
