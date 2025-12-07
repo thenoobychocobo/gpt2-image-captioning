@@ -1,0 +1,32 @@
+seed: 42
+max_caption_length: 50
+
+paths:
+  data_dir: "coco_data/"
+  embeddings_path: "coco_data/embeddings/"
+  annotations_path: "coco_data/annotations/"
+  checkpoints_path: "checkpoints/"
+
+mapping_network:
+  embed_dim: 512
+  gpt_dim: 768
+  prefix_length: 10
+  hidden_length: 10
+
+image_captioning:
+  freeze_gpt_weights: true
+  prefix_task_prompt: null
+
+training:
+  batch_size: 32
+  num_epochs: 3
+  num_workers: 4
+  learning_rate: !!float 1e-4
+  num_warmup_steps: 0
+  save_every_epoch: 1
+
+validation:
+  eval_every_epoch: 1
+  batch_size: 128
+  temperature: 0.0
+  top_p: 0.9
