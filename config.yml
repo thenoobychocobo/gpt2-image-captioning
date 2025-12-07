@@ -27,6 +27,6 @@ training:
 
 validation:
   eval_every_epoch: 1
-  batch_size: 128
+  batch_size: 32
   temperature: 0.0
   top_p: 0.9
