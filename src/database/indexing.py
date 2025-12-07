@@ -1,5 +1,7 @@
 import gc
 import os
+import faiss
+import pickle
 
 import numpy as np
 import torch
@@ -137,16 +139,15 @@ def run_indexing_pipeline(
     db_store.close()
     print("Indexing pipeline complete!")
 
-
+# EXAMPLE USAGE
 if __name__ == "__main__":
-    # Use linux pathing for WSL compatibility
-    db_path = os.path.join(os.path.expanduser("~"), "vector_db")
-
+    db_path = "vector_db"
+    
     if not os.path.exists(db_path):
         os.makedirs(db_path)
 
     run_indexing_pipeline(
         db_directory=db_path,
-        image_embedding_file_path="/mnt/c/Users/hoxia/Documents/NLDeeznuts/gpt2-image-captioning/data/data/coco/embeddings/val_clip_embeddings.pt",
-        caption_embedding_file_path="/mnt/c/Users/hoxia/Documents/NLDeeznuts/gpt2-image-captioning/data/data/coco/embeddings/val_caption_embeddings.pts",
+        image_embedding_file_path="path_to_train_clip_embeddings.pt",
+        caption_embedding_file_path="path_to_train_caption_embeddings.pts",
     )

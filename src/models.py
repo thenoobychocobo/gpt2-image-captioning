@@ -3,12 +3,11 @@ from typing import Literal
 
 import torch
 import torch.nn as nn
-from objectbox import Store
 from torch.nn import functional as F
 from transformers import GPT2LMHeadModel, GPT2Tokenizer
 from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions
 
-from src.database.image_store import retrieve_for_single_embedding
+from src.database import image_store, faiss_store
 from src.utils import load_gpt2_tokenizer
 
 
@@ -652,10 +651,73 @@ class RetrievalAugmentedTransformer(ImageCaptioningModel):
         super().__init__(*args, **kwargs)
         self.max_workers = max_workers
         self.aggregator = RetrievalAggregator(embed_dim, aggregation_type)
+    
+    def _retrieve_batch(
+        self,
+        db_store,
+        image_embeddings: torch.Tensor,
+        top_i: int,
+        top_k: int,
+    ) -> torch.Tensor:
+        """
+        Retrieve caption embeddings for a batch of images.
+        Handles both FAISS (fast batch ops) and ObjectBox (threaded).
+        
+        Returns:
+            torch.Tensor of shape (batch_size, top_k, embed_dim)
+        """
+        batch_size = image_embeddings.shape[0]
+        device = image_embeddings.device
+        
+        # Check if it's a FAISS store (has image_index attribute)
+        is_faiss = hasattr(db_store, 'image_index')
 
+        if is_faiss:
+            # FAISS: Native batch search (MUCH faster!)
+            query_vectors = image_embeddings.cpu().numpy().astype('float32')
+            
+            # Batch similarity search
+            batch_image_results = faiss_store.retrieve_images_by_vector_similarity(
+                db_store, query_vectors, top_i
+            )
+            
+            # Extract filenames for each query
+            batch_filenames = [
+                [filename for filename, _ in results] 
+                for results in batch_image_results
+            ]
+            
+            # Batch caption retrieval
+            caption_embeds_np = faiss_store.get_caption_embeddings(
+                db_store, top_k, batch_filenames, embed_dim=512
+            )
+            
+            # Convert to tensor
+            return torch.from_numpy(caption_embeds_np).to(device)
+        
+        else:
+            # ObjectBox: Use threading for better performance
+            all_retrieved_embeddings = []
+            
+            with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+                futures = [
+                    executor.submit(
+                        image_store.retrieve_for_single_embedding,
+                        image_embeddings[i : i + 1],
+                        db_store,
+                        top_i,
+                        top_k,
+                        device,
+                    )
+                    for i in range(batch_size)
+                ]
+                all_retrieved_embeddings = [f.result() for f in futures]
+            
+            return torch.stack(all_retrieved_embeddings, dim=0)
+        
     def forward(
         self,
-        db_store: Store,
+        db_store,
         top_i: int,  # number of similar images to retrieve, not included in paper
         top_k: int,  # number of captions to retrieve, according to the paper, k=10 or k=20 works well
         caption_token_ids: torch.Tensor,
@@ -667,49 +729,11 @@ class RetrievalAugmentedTransformer(ImageCaptioningModel):
         Forward pass with retrieval augmentation.
         Retrieves top-k similar captions and augments the image embeddings.
         """
-        batch_size = image_embeddings.shape[0]
 
-        # Retrieve caption embeddings for each image in batch
-        all_retrieved_embeddings = []
-
-        # ObjectBox is thread-safe, so we can parallelize retrievals from same store
-        with ThreadPoolExecutor(
-            max_workers=self.max_workers
-        ) as executor:  # Adjust workers based on I/O
-            futures = [
-                executor.submit(
-                    retrieve_for_single_embedding,
-                    image_embeddings[i : i + 1],
-                    db_store,
-                    top_i,
-                    top_k,
-                    image_embeddings.device,
-                )
-                for i in range(batch_size)
-            ]
-            all_retrieved_embeddings = [f.result() for f in futures]
-        # for i in range(batch_size):
-        #     single_embedding = image_embeddings[i:i+1]
-
-        #     # Convert this to a numpy array for Objectbox to be able to search for nearest neighbors
-        #     query_vector_for_db = single_embedding.squeeze(0).tolist()
-
-        #     filenames_with_scores = retrieve_images_by_vector_similarity(
-        #         db_store=db_store,
-        #         query_embedding_vector=query_vector_for_db,
-        #         top_i=top_i,
-        #     )
-
-        #     caption_embeds = get_caption_embeddings(
-        #         db_store=db_store,
-        #         top_k=top_k,
-        #         filenames=[filename for filename, _ in filenames_with_scores],
-        #     )
-        #     caption_embeds = torch.from_numpy(caption_embeds).to(image_embeddings.device)
-        #     all_retrieved_embeddings.append(caption_embeds)
-
-        # Stack: (batch_size, top_k, embed_dim)
-        retrieved_embeddings = torch.stack(all_retrieved_embeddings, dim=0)
+        # Retrieve caption embeddings (handles both FAISS and ObjectBox)
+        retrieved_embeddings = self._retrieve_batch(
+            db_store, image_embeddings, top_i, top_k
+        )
 
         # Aggregate retrieved embeddings and combine with query
         augmented_embeddings = self.aggregator(image_embeddings, retrieved_embeddings)
@@ -724,7 +748,7 @@ class RetrievalAugmentedTransformer(ImageCaptioningModel):
 
     def generate(
         self,
-        db_store: Store,
+        db_store,
         top_k: int,
         top_i: int,
         image_embeddings: torch.Tensor,
@@ -735,26 +759,11 @@ class RetrievalAugmentedTransformer(ImageCaptioningModel):
         """
         Generate captions with retrieval augmentation.
         """
-        batch_size = image_embeddings.shape[0]
 
-        all_retrieved_embeddings = []
-
-        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            futures = [
-                executor.submit(
-                    retrieve_for_single_embedding,
-                    image_embeddings[i : i + 1],
-                    db_store,
-                    top_i,
-                    top_k,
-                    image_embeddings.device,
-                )
-                for i in range(batch_size)
-            ]
-            all_retrieved_embeddings = [f.result() for f in futures]
-
-        # Stack: (batch_size, top_k, embed_dim)
-        retrieved_embeddings = torch.stack(all_retrieved_embeddings, dim=0)
+        # Retrieve caption embeddings (handles both FAISS and ObjectBox)
+        retrieved_embeddings = self._retrieve_batch(
+            db_store, image_embeddings, top_i, top_k
+        )
 
         # Aggregate retrieved embeddings and combine with query
         augmented_embeddings = self.aggregator(image_embeddings, retrieved_embeddings)
@@ -763,7 +772,7 @@ class RetrievalAugmentedTransformer(ImageCaptioningModel):
         return super().generate(augmented_embeddings, max_length, temperature, top_p)
 
     
-    def generate_captions(self, db_store: Store, top_k: int, top_i: int, image_embeddings: torch.Tensor, **kwargs) -> list[str]:
+    def generate_captions(self, db_store, top_k: int, top_i: int, image_embeddings: torch.Tensor, **kwargs) -> list[str]:
         """
         Convenience method to generate and decode strings directly.
         """

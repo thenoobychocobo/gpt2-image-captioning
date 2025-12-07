@@ -15,7 +15,6 @@ from dataclasses import dataclass
 from typing import Any
 
 import torch
-from objectbox import Store
 from pycocoevalcap.bleu.bleu import Bleu
 from pycocoevalcap.cider.cider import Cider
 
@@ -232,7 +231,7 @@ def generate_and_evaluate(
 
 def generate_and_evaluate_rat(
     model: torch.nn.Module,
-    db_store: Store,
+    db_store,
     top_k: int,
     top_i: int,
     dataset: torch.utils.data.Dataset,
@@ -391,7 +390,7 @@ def evaluate_epoch(
 
 def evaluate_rat_epoch(
     model: torch.nn.Module,
-    db_store: Store,
+    db_store,
     top_k: int,
     top_i: int,
     dataset: torch.utils.data.Dataset,

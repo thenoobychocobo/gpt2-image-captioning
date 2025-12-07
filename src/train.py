@@ -2,7 +2,6 @@ import os
 from typing import Any
 
 import torch
-from objectbox import Store
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import get_linear_schedule_with_warmup
@@ -245,7 +244,7 @@ def train(
 def train_rat(
     train_dataset: CocoDataset,
     model: RetrievalAugmentedTransformer,
-    db_store: Store,
+    db_store,
     top_k: int,
     top_i: int,
     batch_size: int,
