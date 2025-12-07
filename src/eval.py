@@ -13,9 +13,9 @@ import json
 import os
 from dataclasses import dataclass
 from typing import Any
-from objectbox import Store
 
 import torch
+from objectbox import Store
 from pycocoevalcap.bleu.bleu import Bleu
 from pycocoevalcap.cider.cider import Cider
 
@@ -229,6 +229,7 @@ def generate_and_evaluate(
 
     return predictions, metrics
 
+
 def generate_and_evaluate_rat(
     model: torch.nn.Module,
     db_store: Store,
@@ -306,6 +307,7 @@ def generate_and_evaluate_rat(
     metrics = evaluate_captions(predictions, annotations_path)
 
     return predictions, metrics
+
 
 def evaluate_epoch(
     model: torch.nn.Module,
@@ -386,6 +388,7 @@ def evaluate_epoch(
 
     return metrics
 
+
 def evaluate_rat_epoch(
     model: torch.nn.Module,
     db_store: Store,
@@ -458,7 +461,9 @@ def evaluate_rat_epoch(
     print(f"Predictions saved to: {predictions_path}")
 
     # Save metrics to JSON
-    metrics_path = os.path.join(output_dir, f"epoch_{epoch}_{split_name}_metrics_rat.json")
+    metrics_path = os.path.join(
+        output_dir, f"epoch_{epoch}_{split_name}_metrics_rat.json"
+    )
     metrics_data = {
         "epoch": epoch,
         "split": split_name,

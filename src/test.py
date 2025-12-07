@@ -1,14 +1,12 @@
 import json
 
 import torch
+from objectbox import Store
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from src.dataset import CocoDataset
-from src.models import ImageCaptioningModel
-from src.models import RetrievalAugmentedTransformer
-
-from objectbox import Store
+from src.models import ImageCaptioningModel, RetrievalAugmentedTransformer
 
 
 def generate_test_caption_predictions(
@@ -83,6 +81,7 @@ def generate_test_caption_predictions(
         json.dump(results, f)
 
     return results
+
 
 def generate_test_caption_predictions_rat(
     model: RetrievalAugmentedTransformer,
@@ -165,4 +164,3 @@ def generate_test_caption_predictions_rat(
         json.dump(results, f)
 
     return results
-

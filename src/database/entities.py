@@ -6,22 +6,23 @@ Defines ObjectBox entities for storing documents and chunks with vector embeddin
 
 from objectbox import (
     Entity,
-    Int64,
-    String,
     Float32Vector,
+    Float64,
     HnswIndex,
     Id,
-    Float64,
+    Int64,
+    String,
     VectorDistanceType,
 )
 
 from src.database.config import (
-    IMAGE_EMBEDDING_DIMENSIONS,
     CAPTION_EMBEDDING_DIMENSIONS,
+    IMAGE_EMBEDDING_DIMENSIONS,
     INDEXING_SEARCH_COUNT,
     NEIGHBORS_PER_NODE,
     NORMALIZE_EMBEDDINGS,
 )
+
 
 @Entity()
 class Image:
@@ -42,6 +43,7 @@ class Image:
         )
     )
 
+
 @Entity()
 class Caption:
     """
@@ -61,4 +63,6 @@ class Caption:
             indexing_search_count=INDEXING_SEARCH_COUNT,
         )
     )
-    similarity_scores = Float64()  # Store similarity score of the captions to the source image
+    similarity_scores = (
+        Float64()
+    )  # Store similarity score of the captions to the source image

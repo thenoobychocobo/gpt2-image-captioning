@@ -2,14 +2,14 @@ import os
 from typing import Any
 
 import torch
+from objectbox import Store
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import get_linear_schedule_with_warmup
 
 from src.dataset import CocoDataset
-from src.eval import evaluate_epoch, save_eval_summary, evaluate_rat_epoch
+from src.eval import evaluate_epoch, evaluate_rat_epoch, save_eval_summary
 from src.models import ImageCaptioningModel, RetrievalAugmentedTransformer
-from objectbox import Store
 from src.utils import save_eval_metric_curves, save_loss_curves
 
 
@@ -50,6 +50,7 @@ def train(
         save_every_epoch (int, optional): The frequency (in epochs) to save the model checkpoint. Defaults to 5.
         device (torch.device | None, optional): The device to run the training on. Defaults to None, which selects CUDA if available.
         outputs_dir (str, optional): The directory to save model checkpoints. Defaults to "checkpoints".
+        grad_accum_steps (int, optional): Number of gradient accumulation steps. Defaults to 1.
         val_dataset (CocoDataset | None, optional): Validation dataset for evaluation. Defaults to None.
         val_annotations_path (str | None, optional): Path to validation annotations JSON. Required if val_dataset is provided.
         eval_every_epoch (int, optional): Frequency of evaluation in epochs. Defaults to 1.
@@ -122,7 +123,7 @@ def train(
 
             # Clear gradients ONLY when starting a new accumulation cycle
             # We don't need to call optimizer.zero_grad() here since it's called below
-            
+
             # Forward pass
             # Model predicts the next token given previous tokens and image embeddings
             # We do not have to shift the token_ids here because the model's forward method handles that internally
@@ -135,7 +136,7 @@ def train(
 
             # SCALE LOSS: Divide the loss by the accumulation steps
             loss = outputs.loss / grad_accum_steps
-            
+
             # Compute loss and accumulate gradients
             loss.backward()
             if (batch_idx + 1) % grad_accum_steps == 0 or (
@@ -152,7 +153,7 @@ def train(
 
                 # Clear accumulated gradients
                 optimizer.zero_grad()
-            
+
             # Logging (Use the unscaled loss for logging simplicity)
             batch_loss = outputs.loss.item()
             current_epoch_loss += batch_loss
@@ -239,7 +240,6 @@ def train(
         "best_val_cider": best_val_cider,
         "best_epoch": best_epoch,
     }
-
 
 
 def train_rat(
@@ -362,7 +362,7 @@ def train_rat(
 
             # SCALE LOSS: Divide the loss by the accumulation steps
             loss = outputs.loss / grad_accum_steps
-            
+
             # Compute loss and accumulate gradients
             loss.backward()
             if (batch_idx + 1) % grad_accum_steps == 0 or (
@@ -379,7 +379,7 @@ def train_rat(
 
                 # Clear accumulated gradients
                 optimizer.zero_grad()
-            
+
             # Logging (Use the unscaled loss for logging simplicity)
             batch_loss = outputs.loss.item()
             current_epoch_loss += batch_loss

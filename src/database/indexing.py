@@ -1,18 +1,19 @@
-import logging
-import numpy as np
-import os
-import sys
-from objectbox import Box, Store
-from tqdm import tqdm
-import torch
-from src.database.entities import Image, Caption
-from src.database.image_store import create_objectbox_store
 import gc
+import os
+
+import numpy as np
+import torch
+from objectbox import Box
+from tqdm import tqdm
+
+from src.database.entities import Caption, Image
+from src.database.image_store import create_objectbox_store
+
 
 def safe_put(box: Box, entities: list, chunk_size: int = 9000):
     """
     Bypasses ObjectBox's 10,000 item limit per put() call.
-    Splits large lists into chunks automatically. 
+    Splits large lists into chunks automatically.
     Running this inside a transaction keeps it extremely fast.
     """
     total = len(entities)
@@ -24,11 +25,12 @@ def safe_put(box: Box, entities: list, chunk_size: int = 9000):
         for i in range(0, total, chunk_size):
             box.put(entities[i : i + chunk_size])
 
+
 def run_indexing_pipeline(
     db_directory: str,
     image_embedding_file_path: str,
     caption_embedding_file_path: str,
-    batch_size: int = 5000, # Increased to 5000 because safe_put handles the volume
+    batch_size: int = 5000,  # Increased to 5000 because safe_put handles the volume
 ) -> None:
     """Run the indexing pipeline"""
 
@@ -40,28 +42,30 @@ def run_indexing_pipeline(
 
     print("Loading data...")
     # Load .pt files
-    image_data = torch.load(image_embedding_file_path, weights_only=True) 
+    image_data = torch.load(image_embedding_file_path, weights_only=True)
     caption_data = torch.load(caption_embedding_file_path, weights_only=False)
 
     print("Converting Image tensors to NumPy...")
     # Convert all images to Float32 NumPy array once. Embeddings are already normalized.
-    all_image_embeddings = image_data['embeddings'].numpy().astype(np.float32)
-        
+    all_image_embeddings = image_data["embeddings"].numpy().astype(np.float32)
+
     # Create filename map
-    filename_to_index = {filename: idx for idx, filename in enumerate(image_data['filenames'])}
+    filename_to_index = {
+        filename: idx for idx, filename in enumerate(image_data["filenames"])
+    }
 
     # DELETE the original PyTorch tensor to free up space
-    del image_data['embeddings']
-    del image_data['filenames'] # Filenames were copied to filename_to_index
+    del image_data["embeddings"]
+    del image_data["filenames"]  # Filenames were copied to filename_to_index
     del image_data
 
     # Pre-clean the captions for faster iteration and reduced memory
     print("Pre-converting caption tensors...")
     for item in tqdm(caption_data, desc="Pre-converting"):
-        for cap in item['embeddings']:
+        for cap in item["embeddings"]:
             # Convert any remaining torch Tensors to NumPy upfront
-            if torch.is_tensor(cap['embedding']):
-                cap['embedding'] = cap['embedding'].numpy().astype(np.float32)
+            if torch.is_tensor(cap["embedding"]):
+                cap["embedding"] = cap["embedding"].numpy().astype(np.float32)
 
     # Force garbage collection to free up memory
     gc.collect()
@@ -70,22 +74,21 @@ def run_indexing_pipeline(
     captions_to_add = []
 
     print(f"Processing entities (Batch Size: {batch_size})...")
-    
-    for caption_entry in tqdm(caption_data, desc="Indexing"):
 
-        filename = caption_entry['filenames']
-        
+    for caption_entry in tqdm(caption_data, desc="Indexing"):
+        filename = caption_entry["filenames"]
+
         image_idx = filename_to_index.get(filename)
         if image_idx is None:
             continue
-            
+
         # Fetch pre-normalized embeddings from the .pt files
         current_image_embedding = all_image_embeddings[image_idx]
-        current_caps = caption_entry['embeddings']
-        
+        current_caps = caption_entry["embeddings"]
+
         # Extract embeddings into a 2D NumPy Matrix (already normalized)
-        cap_vecs = np.array([x['embedding'] for x in current_caps], dtype=np.float32)
-        cap_ids = [x['caption_id'] for x in current_caps]
+        cap_vecs = np.array([x["embedding"] for x in current_caps], dtype=np.float32)
+        cap_ids = [x["caption_id"] for x in current_caps]
 
         # Dot Product (Matrix x Vector) for Similarity - no normalization needed
         sim_scores = np.dot(cap_vecs, current_image_embedding)
@@ -96,18 +99,20 @@ def run_indexing_pipeline(
         # Create Image Object
         image_entity = Image(
             file_name=filename,
-            image_embedding_vector=current_image_embedding.tolist(), 
+            image_embedding_vector=current_image_embedding.tolist(),
         )
         images_to_add.append(image_entity)
 
         # Create Caption Objects
         for i, cap_id in enumerate(cap_ids):
-            captions_to_add.append(Caption(
-                file_name=filename,
-                caption_id=cap_id,
-                caption_embedding_vector=cap_vecs_list[i], 
-                similarity_scores=float(sim_scores[i]),
-            ))
+            captions_to_add.append(
+                Caption(
+                    file_name=filename,
+                    caption_id=cap_id,
+                    caption_embedding_vector=cap_vecs_list[i],
+                    similarity_scores=float(sim_scores[i]),
+                )
+            )
 
         # Transactional Bulk Insert
         if len(images_to_add) >= batch_size:
@@ -116,7 +121,7 @@ def run_indexing_pipeline(
                 # Use safe_put to avoid the 10k limit crash
                 safe_put(image_box, images_to_add)
                 safe_put(caption_box, captions_to_add)
-            
+
             # Clear memory
             images_to_add = []
             captions_to_add = []
@@ -132,8 +137,8 @@ def run_indexing_pipeline(
     db_store.close()
     print("Indexing pipeline complete!")
 
-if __name__ == "__main__":
 
+if __name__ == "__main__":
     # Use linux pathing for WSL compatibility
     db_path = os.path.join(os.path.expanduser("~"), "vector_db")
 

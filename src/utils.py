@@ -101,6 +101,7 @@ def load_gpt2_tokenizer() -> GPT2Tokenizer:
     )  # Set padding token to EOS token (GPT-2 has no dedicated pad token)
     return tokenizer
 
+
 def get_max_workers(
     batch_size: int,
 ) -> int:

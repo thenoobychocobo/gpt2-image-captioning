@@ -6,13 +6,12 @@ adding documents and images, and performing similarity searches.
 """
 
 import os
-import torch
 
 import numpy as np
+import torch
 from objectbox import Box, Model, Store
 
-from src.database.entities import Image, Caption
-
+from src.database.entities import Caption, Image
 
 # Shared ObjectBox model for all created stores (to maintain the same objectbox-model.json)
 OBJECTBOX_MODEL = Model()
@@ -21,6 +20,7 @@ OBJECTBOX_MODEL.entity(Caption)
 
 # 5 GB size limit for the database
 DATABASE_SIZE_LIMIT_KB = 1024 * 1024 * 5
+
 
 def create_objectbox_store(
     db_directory: str,
@@ -43,8 +43,13 @@ def create_objectbox_store(
 
         shutil.rmtree(db_directory)
 
-    db_store = Store(model=OBJECTBOX_MODEL, directory=db_directory, max_db_size_in_kb=DATABASE_SIZE_LIMIT_KB)
+    db_store = Store(
+        model=OBJECTBOX_MODEL,
+        directory=db_directory,
+        max_db_size_in_kb=DATABASE_SIZE_LIMIT_KB,
+    )
     return db_store
+
 
 def retrieve_images_by_vector_similarity(
     db_store: Store, query_embedding_vector: np.ndarray, top_i: int
@@ -63,7 +68,9 @@ def retrieve_images_by_vector_similarity(
     """
     query = (
         db_store.box(Image)
-        .query(Image.image_embedding_vector.nearest_neighbor(query_embedding_vector, top_i))
+        .query(
+            Image.image_embedding_vector.nearest_neighbor(query_embedding_vector, top_i)
+        )
         .build()
     )
     results = query.find_with_scores()
@@ -74,69 +81,67 @@ def retrieve_images_by_vector_similarity(
 
     return [(result[0].file_name, result[1]) for result in results]
 
+
 def get_caption_embeddings(
-    db_store: Store,
-    top_k: int,
-    filenames: list[str],
-    embed_dim: int = 512
+    db_store: Store, top_k: int, filenames: list[str], embed_dim: int = 512
 ) -> np.ndarray:
     """
     Given list of filenames, retrieve caption embeddings and return exactly top_k captions.
     """
     caption_box: Box = db_store.box(Caption)
     all_captions = []
-    
+
     # Query ALL filenames (don't break early)
     for filename in filenames:
         query = caption_box.query(Caption.file_name.equals(filename)).build()
         results = query.find()
         all_captions.extend(results)
-        
+
         # Only break if we have ENOUGH captions already
         if len(all_captions) >= top_k:
             break
-    
+
     # Handle empty case
     if not all_captions:
         return np.zeros((top_k, embed_dim), dtype=np.float32)
-    
+
     # Take first top_k captions
     selected_captions = all_captions[:top_k]
-    
+
     # Extract embeddings
-    caption_embeddings = np.array([
-        np.array(caption.caption_embedding_vector) 
-        for caption in selected_captions
-    ])
-    
+    caption_embeddings = np.array(
+        [np.array(caption.caption_embedding_vector) for caption in selected_captions]
+    )
+
     # Pad if needed
     num_retrieved = len(caption_embeddings)
     if num_retrieved < top_k:
         embed_dim = caption_embeddings.shape[1]
         padding = np.zeros((top_k - num_retrieved, embed_dim), dtype=np.float32)
         caption_embeddings = np.vstack([caption_embeddings, padding])
-    
+
     return caption_embeddings
+
 
 def retrieve_for_single_embedding(
     single_embedding: torch.Tensor,
     db_store: Store,
     top_i: int,
     top_k: int,
-    device: torch.device
+    device: torch.device,
 ) -> torch.Tensor:
     query_vector_for_db = single_embedding.squeeze(0).cpu().numpy().tolist()
-    
+
     filenames_with_scores = retrieve_images_by_vector_similarity(
         db_store=db_store,
         query_embedding_vector=query_vector_for_db,
         top_i=top_i,
     )
-    
+
     caption_embeds = get_caption_embeddings(
         db_store=db_store,
         top_k=top_k,
         filenames=[filename for filename, _ in filenames_with_scores],
     )
-    
+
     return torch.from_numpy(caption_embeds).to(device)

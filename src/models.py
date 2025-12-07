@@ -1,15 +1,16 @@
-from typing import Literal
-from objectbox import Store
 from concurrent.futures import ThreadPoolExecutor
+from typing import Literal
 
 import torch
 import torch.nn as nn
+from objectbox import Store
 from torch.nn import functional as F
 from transformers import GPT2LMHeadModel, GPT2Tokenizer
 from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions
 
-from src.database.image_store import retrieve_images_by_vector_similarity, get_caption_embeddings, retrieve_for_single_embedding
+from src.database.image_store import retrieve_for_single_embedding
 from src.utils import load_gpt2_tokenizer
+
 
 class MLPMappingNetwork(nn.Module):
     """
@@ -476,20 +477,92 @@ class ImageCaptioningModel(nn.Module):
         # TODO: Use self.tokenizer to decode directly
         return torch.cat(generated_tokens, dim=1)  # (batch_size, generated_length)
 
+    def generate_captions(self, image_embeddings: torch.Tensor, **kwargs) -> list[str]:
+        """
+        Convenience method to generate and decode strings directly.
+        """
+        generated_ids = self.generate(image_embeddings, **kwargs)
+        return self.tokenizer.batch_decode(
+            generated_ids,
+            skip_special_tokens=True,  # Strips away special tokens like <eos>
+        )
+
+    def save_parameters(self, output_path: str) -> None:
+        """
+        Saves all model parameters and buffers except for the GPT-2 weights if they are frozen.
+        If GPT-2 weights are not frozen, all parameters are saved.
+        Use the `load_partial_state_dict` method to load these parameters back into the model.
+
+        Args:
+            output_path (str): The file path to save the trainable parameters.
+        """
+        # Get all trainable parameter names
+        trainable_param_names = {
+            name for name, param in self.named_parameters() if param.requires_grad
+        }
+
+        # Filter state dict to include only:
+        # 1. Trainable parameters (already in trainable_param_names set)
+        # 2. Buffers (e.g., running mean/var in BatchNorm layers) belonging to trainable modules
+        # We are essentially saving everything except for GPT-2 weights if they are frozen.
+        keys_to_save = {}
+
+        for name, param in self.state_dict().items():
+            if name in trainable_param_names:
+                keys_to_save[name] = param
+            # If we froze GPT, we will save everything NOT inside 'gpt'
+            elif not name.startswith("gpt."):
+                keys_to_save[name] = param
+
+        print(
+            f"Saving {len(keys_to_save)} trainable parameters and buffers to {output_path}."
+        )
+        torch.save(keys_to_save, output_path)
+
+    def load_saved_parameters(
+        self, checkpoint_path: str, device: torch.device | None = None
+    ) -> None:
+        """
+        Loads a state dictionary (containing saved model parameters) from the specified checkpoint path.
+        This is useful for loading only the trained parameters and buffers into the model (see `save_parameters`).
+
+        Args:
+            checkpoint_path (str): The file path of the checkpoint to load.
+            device (torch.device | None, optional): The device to map the loaded parameters to. Defaults to None.
+        """
+        # Load the state dictionary from the checkpoint (may not include GPT-2 weights)
+        state_dict = torch.load(checkpoint_path, map_location=device)
+        keys = self.load_state_dict(state_dict, strict=False)
+
+        # Validation: check for unexpected keys
+        if keys.unexpected_keys:
+            raise ValueError(
+                f"Unexpected keys found in the checkpoint: {keys.unexpected_keys}"
+            )
+
+        # Validation: check that any missing keys are only from frozen GPT weights and not from anything else
+        non_gpt_missing = [k for k in keys.missing_keys if not k.startswith("gpt.")]
+        if non_gpt_missing:
+            raise ValueError(
+                f"Missing keys found in the checkpoint that are not from frozen GPT weights: {non_gpt_missing}"
+            )
+
+
 class RetrievalAggregator(nn.Module):
     """
     Aggregates retrieved caption embeddings using various pooling strategies.
     Based on the RAT paper's comparison of aggregation functions.
     """
+
     def __init__(
-        self, 
-        embed_dim: int, 
-        aggregation_type: Literal["mean", "max", "sum_norm", "attention"] = "mean"
+        self,
+        embed_dim: int,
+        aggregation_type: Literal["mean", "max", "sum_norm", "attention"] = "mean",
     ):
         """
         Args:
             embed_dim: Dimension of embeddings
-            aggregation_type: 
+            aggregation_type:
                 - "mean": Standard average pooling (best per paper)
                 - "max": Max pooling over retrieved embeddings
                 - "sum_norm": Sum of L2-normalized features followed by L2-norm
@@ -498,73 +571,81 @@ class RetrievalAggregator(nn.Module):
         super().__init__()
         self.aggregation_type = aggregation_type
         self.embed_dim = embed_dim
-        
+
         if aggregation_type == "attention":
             # Learnable attention for comparison
             self.attention_proj = nn.Linear(embed_dim, 1)
-    
+
     def forward(
-        self,
-        query_embedding: torch.Tensor, 
-        retrieved_embeddings: torch.Tensor
+        self, query_embedding: torch.Tensor, retrieved_embeddings: torch.Tensor
     ) -> torch.Tensor:
         """
         Args:
             query_embedding: (batch_size, embed_dim) - original image embedding
             retrieved_embeddings: (batch_size, top_k, embed_dim) - retrieved caption embeddings
-        
+
         Returns:
             (batch_size, embed_dim) - aggregated embedding combined with query
         """
         if self.aggregation_type == "mean":
             # Standard average pooling (best according to paper)
             aggregated = retrieved_embeddings.mean(dim=1)  # (batch_size, embed_dim)
-            
+
         elif self.aggregation_type == "max":
             # Max pooling
             aggregated = retrieved_embeddings.max(dim=1)[0]  # (batch_size, embed_dim)
-            
+
         elif self.aggregation_type == "sum_norm":
             # Sum of L2-normalized features followed by L2-norm
             # Normalize each retrieved embedding
-            retrieved_normalized = F.normalize(retrieved_embeddings, p=2, dim=2)  # (batch_size, top_k, embed_dim)
+            retrieved_normalized = F.normalize(
+                retrieved_embeddings, p=2, dim=2
+            )  # (batch_size, top_k, embed_dim)
             # Sum across top_k
             summed = retrieved_normalized.sum(dim=1)  # (batch_size, embed_dim)
             # L2-normalize the result
             aggregated = F.normalize(summed, p=2, dim=1)  # (batch_size, embed_dim)
-            
+
         elif self.aggregation_type == "attention":
             # Learnable attention weights (for comparison)
-            attn_scores = self.attention_proj(retrieved_embeddings)  # (batch_size, top_k, 1)
+            attn_scores = self.attention_proj(
+                retrieved_embeddings
+            )  # (batch_size, top_k, 1)
             attn_weights = F.softmax(attn_scores, dim=1)  # (batch_size, top_k, 1)
-            aggregated = (retrieved_embeddings * attn_weights).sum(dim=1)  # (batch_size, embed_dim)
-        
+            aggregated = (retrieved_embeddings * attn_weights).sum(
+                dim=1
+            )  # (batch_size, embed_dim)
+
         else:
             raise ValueError(f"Unknown aggregation_type: {self.aggregation_type}")
-        
+
         # Combine aggregated retrieval with query image embedding
         # Simple addition (you could also try concatenation + projection)
         augmented = query_embedding + aggregated
-        
+
         return augmented
+
 
 class RetrievalAugmentedTransformer(ImageCaptioningModel):
     """
     Retrieval-Augmented Transformer for image captioning.
     Retrieves similar captions and aggregates them to augment the input image embedding.
     """
+
     def __init__(
-        self, 
+        self,
         embed_dim: int,
         max_workers: int = 4,
-        aggregation_type: Literal["mean", "max", "sum_norm", "attention"] = "mean", # mean is the best method in the paper
-        *args, 
-        **kwargs
+        aggregation_type: Literal[
+            "mean", "max", "sum_norm", "attention"
+        ] = "mean",  # mean is the best method in the paper
+        *args,
+        **kwargs,
     ) -> None:
         """
         Args:
             embed_dim: Dimension of image embeddings (e.g., 512 for CLIP)
-            aggregation_type: Method to aggregate retrieved embeddings. 
+            aggregation_type: Method to aggregate retrieved embeddings.
                 "mean" (default) performs best according to the paper.
             *args, **kwargs: Arguments passed to ImageCaptioningModel
         """
@@ -575,8 +656,8 @@ class RetrievalAugmentedTransformer(ImageCaptioningModel):
     def forward(
         self,
         db_store: Store,
-        top_i: int, # number of similar images to retrieve, not included in paper
-        top_k: int, # number of captions to retrieve, according to the paper, k=10 or k=20 works well
+        top_i: int,  # number of similar images to retrieve, not included in paper
+        top_k: int,  # number of captions to retrieve, according to the paper, k=10 or k=20 works well
         caption_token_ids: torch.Tensor,
         image_embeddings: torch.Tensor,
         attention_mask: torch.Tensor | None = None,
@@ -592,15 +673,17 @@ class RetrievalAugmentedTransformer(ImageCaptioningModel):
         all_retrieved_embeddings = []
 
         # ObjectBox is thread-safe, so we can parallelize retrievals from same store
-        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:  # Adjust workers based on I/O
+        with ThreadPoolExecutor(
+            max_workers=self.max_workers
+        ) as executor:  # Adjust workers based on I/O
             futures = [
                 executor.submit(
-                    retrieve_for_single_embedding, 
-                    image_embeddings[i:i+1], 
-                    db_store, 
-                    top_i, 
-                    top_k, 
-                    image_embeddings.device
+                    retrieve_for_single_embedding,
+                    image_embeddings[i : i + 1],
+                    db_store,
+                    top_i,
+                    top_k,
+                    image_embeddings.device,
                 )
                 for i in range(batch_size)
             ]
@@ -616,7 +699,7 @@ class RetrievalAugmentedTransformer(ImageCaptioningModel):
         #         query_embedding_vector=query_vector_for_db,
         #         top_i=top_i,
         #     )
-            
+
         #     caption_embeds = get_caption_embeddings(
         #         db_store=db_store,
         #         top_k=top_k,
@@ -624,13 +707,13 @@ class RetrievalAugmentedTransformer(ImageCaptioningModel):
         #     )
         #     caption_embeds = torch.from_numpy(caption_embeds).to(image_embeddings.device)
         #     all_retrieved_embeddings.append(caption_embeds)
-        
+
         # Stack: (batch_size, top_k, embed_dim)
         retrieved_embeddings = torch.stack(all_retrieved_embeddings, dim=0)
-        
+
         # Aggregate retrieved embeddings and combine with query
         augmented_embeddings = self.aggregator(image_embeddings, retrieved_embeddings)
-        
+
         # Pass augmented embeddings to parent class forward
         return super().forward(
             caption_token_ids=caption_token_ids,
@@ -638,7 +721,7 @@ class RetrievalAugmentedTransformer(ImageCaptioningModel):
             attention_mask=attention_mask,
             labels=labels,
         )
-    
+
     def generate(
         self,
         db_store: Store,
@@ -653,28 +736,28 @@ class RetrievalAugmentedTransformer(ImageCaptioningModel):
         Generate captions with retrieval augmentation.
         """
         batch_size = image_embeddings.shape[0]
-        
+
         all_retrieved_embeddings = []
-        
+
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             futures = [
                 executor.submit(
-                    retrieve_for_single_embedding, 
-                    image_embeddings[i:i+1], 
-                    db_store, 
-                    top_i, 
-                    top_k, 
-                    image_embeddings.device
+                    retrieve_for_single_embedding,
+                    image_embeddings[i : i + 1],
+                    db_store,
+                    top_i,
+                    top_k,
+                    image_embeddings.device,
                 )
                 for i in range(batch_size)
             ]
             all_retrieved_embeddings = [f.result() for f in futures]
-        
+
         # Stack: (batch_size, top_k, embed_dim)
         retrieved_embeddings = torch.stack(all_retrieved_embeddings, dim=0)
-        
+
         # Aggregate retrieved embeddings and combine with query
         augmented_embeddings = self.aggregator(image_embeddings, retrieved_embeddings)
-        
+
         # Generate using parent class method
         return super().generate(augmented_embeddings, max_length, temperature, top_p)
