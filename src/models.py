@@ -761,3 +761,46 @@ class RetrievalAugmentedTransformer(ImageCaptioningModel):
 
         # Generate using parent class method
         return super().generate(augmented_embeddings, max_length, temperature, top_p)
+
+    
+    def generate_captions(self, db_store: Store, top_k: int, top_i: int, image_embeddings: torch.Tensor, **kwargs) -> list[str]:
+        """
+        Convenience method to generate and decode strings directly.
+        """
+        generated_ids = self.generate(image_embeddings, db_store, top_k, top_i, **kwargs)
+        return self.tokenizer.batch_decode(
+            generated_ids,
+            skip_special_tokens=True,  # Strips away special tokens like <eos>
+        )
+
+    def save_parameters(self, output_path: str) -> None:
+        """
+        Saves all model parameters and buffers except for the GPT-2 weights if they are frozen.
+        If GPT-2 weights are not frozen, all parameters are saved.
+        Use the `load_partial_state_dict` method to load these parameters back into the model.
+
+        Args:
+            output_path (str): The file path to save the trainable parameters.
+        """
+        # Get all trainable parameter names
+        trainable_param_names = {
+            name for name, param in self.named_parameters() if param.requires_grad
+        }
+
+        # Filter state dict to include only:
+        # 1. Trainable parameters (already in trainable_param_names set)
+        # 2. Buffers (e.g., running mean/var in BatchNorm layers) belonging to trainable modules
+        # We are essentially saving everything except for GPT-2 weights if they are frozen.
+        keys_to_save = {}
+
+        for name, param in self.state_dict().items():
+            if name in trainable_param_names:
+                keys_to_save[name] = param
+            # If we froze GPT, we will save everything NOT inside 'gpt'
+            elif not name.startswith("gpt."):
+                keys_to_save[name] = param
+
+        print(
+            f"Saving {len(keys_to_save)} trainable parameters and buffers to {output_path}."
+        )
+        torch.save(keys_to_save, output_path)
