@@ -386,6 +386,91 @@ def evaluate_epoch(
 
     return metrics
 
+def evaluate_rat_epoch(
+    model: torch.nn.Module,
+    db_store: Store,
+    top_k: int,
+    top_i: int,
+    dataset: torch.utils.data.Dataset,
+    annotations_path: str,
+    epoch: int,
+    split_name: str,
+    batch_size: int = 32,
+    num_workers: int = 4,
+    max_length: int = 50,
+    temperature: float = 1.0,
+    top_p: float = 0.9,
+    device: torch.device | None = None,
+    output_dir: str = "eval_results",
+) -> EvalMetrics:
+    """
+    Run evaluation for a single epoch on a given dataset split.
+    Saves predictions and metrics to JSON files.
+
+    Args:
+        model: The trained RetrievalAugmentedTransformer.
+        dataset: CocoDataset instance to evaluate on.
+        annotations_path: Path to ground truth annotations JSON.
+        epoch: Current epoch number (for logging/saving).
+        split_name: Name of the split (e.g., "val", "test").
+        batch_size: Batch size for generation.
+        num_workers: Number of CPU workers for data loading.
+        max_length: Maximum length of generated captions.
+        temperature: Sampling temperature.
+        top_p: Nucleus sampling probability threshold.
+        device: Device to run inference on.
+        output_dir: Directory to save predictions and metrics.
+
+    Returns:
+        EvalMetrics dataclass containing all metric scores.
+    """
+    os.makedirs(output_dir, exist_ok=True)
+
+    print(f"\n{'=' * 60}")
+    print(f"Epoch {epoch} | {split_name.upper()} Evaluation")
+    print(f"{'=' * 60}")
+
+    # Generate and evaluate
+    predictions, metrics = generate_and_evaluate_rat(
+        model=model,
+        db_store=db_store,
+        top_k=top_k,
+        top_i=top_i,
+        dataset=dataset,
+        annotations_path=annotations_path,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        max_length=max_length,
+        temperature=temperature,
+        top_p=top_p,
+        device=device,
+    )
+
+    # Log results
+    print(f"\nResults: {metrics}")
+
+    # Save predictions to JSON
+    predictions_path = os.path.join(
+        output_dir, f"epoch_{epoch}_{split_name}_predictions_rat.json"
+    )
+    with open(predictions_path, "w") as f:
+        json.dump(predictions, f, indent=2)
+    print(f"Predictions saved to: {predictions_path}")
+
+    # Save metrics to JSON
+    metrics_path = os.path.join(output_dir, f"epoch_{epoch}_{split_name}_metrics_rat.json")
+    metrics_data = {
+        "epoch": epoch,
+        "split": split_name,
+        "num_images": len(predictions),
+        **metrics.to_dict(),
+    }
+    with open(metrics_path, "w") as f:
+        json.dump(metrics_data, f, indent=2)
+    print(f"Metrics saved to: {metrics_path}")
+
+    return metrics
+
 
 def save_eval_summary(
     all_metrics: list[dict[str, Any]],

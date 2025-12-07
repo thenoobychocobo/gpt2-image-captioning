@@ -7,7 +7,7 @@ from tqdm import tqdm
 from transformers import get_linear_schedule_with_warmup
 
 from src.dataset import CocoDataset
-from src.eval import evaluate_epoch, save_eval_summary
+from src.eval import evaluate_epoch, save_eval_summary, evaluate_rat_epoch
 from src.models import ImageCaptioningModel, RetrievalAugmentedTransformer
 from objectbox import Store
 from src.utils import save_eval_metric_curves, save_loss_curves
@@ -402,8 +402,11 @@ def train_rat(
         if (epoch + 1) % eval_every_epoch == 0:
             # Evaluate on validation set
             if val_dataset is not None:
-                val_metrics = evaluate_epoch(
+                val_metrics = evaluate_rat_epoch(
                     model=model,
+                    db_store=db_store,
+                    top_k=top_k,
+                    top_i=top_i,
                     dataset=val_dataset,
                     annotations_path=val_annotations_path,
                     epoch=epoch + 1,
@@ -428,7 +431,7 @@ def train_rat(
                     best_val_cider = val_metrics.cider
                     best_epoch = epoch + 1
                     best_model_path = os.path.join(
-                        outputs_dir, f"best_model_epoch_{best_epoch}.pt"
+                        outputs_dir, f"best_rat_model_epoch_{best_epoch}.pt"
                     )
                     model.save_parameters(best_model_path)
                     print(

@@ -648,33 +648,27 @@ class RetrievalAugmentedTransformer(ImageCaptioningModel):
         max_length: int = 50,
         temperature: float = 1.0,
         top_p: float = 0.9,
-        stop_token_id: int = 50256,
     ) -> torch.Tensor:
         """
         Generate captions with retrieval augmentation.
         """
         batch_size = image_embeddings.shape[0]
         
-        # Retrieve caption embeddings for each image in batch
         all_retrieved_embeddings = []
-        for i in range(batch_size):
-            single_embedding = image_embeddings[i:i+1]
-
-            # Convert this to a numpy array for Objectbox to be able to search for nearest neighbors
-            query_vector_for_db = single_embedding.detach().cpu().numpy()
-
-            filenames_with_scores = retrieve_images_by_vector_similarity(
-                db_store=db_store,
-                query_embedding_vector=query_vector_for_db,
-                top_i=top_i,
-            )
-            
-            caption_embeds = get_caption_embeddings(
-                db_store=db_store,
-                top_k=top_k,
-                filenames=[filename for filename, _ in filenames_with_scores],
-            )
-            all_retrieved_embeddings.append(caption_embeds)
+        
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            futures = [
+                executor.submit(
+                    retrieve_for_single_embedding, 
+                    image_embeddings[i:i+1], 
+                    db_store, 
+                    top_i, 
+                    top_k, 
+                    image_embeddings.device
+                )
+                for i in range(batch_size)
+            ]
+            all_retrieved_embeddings = [f.result() for f in futures]
         
         # Stack: (batch_size, top_k, embed_dim)
         retrieved_embeddings = torch.stack(all_retrieved_embeddings, dim=0)
@@ -683,4 +677,4 @@ class RetrievalAugmentedTransformer(ImageCaptioningModel):
         augmented_embeddings = self.aggregator(image_embeddings, retrieved_embeddings)
         
         # Generate using parent class method
-        return super().generate(augmented_embeddings, max_length, temperature, top_p, stop_token_id)
+        return super().generate(augmented_embeddings, max_length, temperature, top_p)

@@ -77,45 +77,55 @@ def retrieve_images_by_vector_similarity(
 def get_caption_embeddings(
     db_store: Store,
     top_k: int,
-    filenames: list[str]
-) -> np.ndarray | None:
+    filenames: list[str],
+    embed_dim: int = 512
+) -> np.ndarray:
     """
-    Given list of filenames, retrieve the associated caption embedding vectors from the ObjectBox store.
-    Args:
-        db_store (Store): The ObjectBox store containing the images.
-        top_k (int): Number of top captions to retrieve in total. Returned captions may be lesser than k if not enough captions are found.
-        filenames (list[str]): List of filenames of images to retrieve caption embeddings for.
-
-    Returns:
-        np.ndarray | None: The associated caption embedding vector if found, otherwise None.
+    Given list of filenames, retrieve caption embeddings and return exactly top_k captions.
     """
     caption_box: Box = db_store.box(Caption)
     all_captions = []
     
-    # Query each filename until we have top_k captions
+    # Query ALL filenames (don't break early)
     for filename in filenames:
-        if len(all_captions) >= top_k:
-            break
-            
         query = caption_box.query(Caption.file_name.equals(filename)).build()
         results = query.find()
-        
-        # Add captions from this image
         all_captions.extend(results)
+        
+        # Only break if we have ENOUGH captions already
+        if len(all_captions) >= top_k:
+            break
     
+    # Handle empty case
     if not all_captions:
-        return None
+        return np.zeros((top_k, embed_dim), dtype=np.float32)
     
-    # Get only first k items from list if there are more than k, safely return fewer if not enough captions
+    # Take first top_k captions
     selected_captions = all_captions[:top_k]
-
+    
     # Extract embeddings
-    caption_embeddings = np.array([np.array(caption.caption_embedding_vector) for caption in selected_captions])
+    caption_embeddings = np.array([
+        np.array(caption.caption_embedding_vector) 
+        for caption in selected_captions
+    ])
+    
+    # Pad if needed
+    num_retrieved = len(caption_embeddings)
+    if num_retrieved < top_k:
+        embed_dim = caption_embeddings.shape[1]
+        padding = np.zeros((top_k - num_retrieved, embed_dim), dtype=np.float32)
+        caption_embeddings = np.vstack([caption_embeddings, padding])
     
     return caption_embeddings
 
-def retrieve_for_single_embedding(single_embedding, db_store, top_i, top_k, device):
-    query_vector_for_db = single_embedding.squeeze(0).tolist()
+def retrieve_for_single_embedding(
+    single_embedding: torch.Tensor,
+    db_store: Store,
+    top_i: int,
+    top_k: int,
+    device: torch.device
+) -> torch.Tensor:
+    query_vector_for_db = single_embedding.squeeze(0).cpu().numpy().tolist()
     
     filenames_with_scores = retrieve_images_by_vector_similarity(
         db_store=db_store,
@@ -128,4 +138,5 @@ def retrieve_for_single_embedding(single_embedding, db_store, top_i, top_k, devi
         top_k=top_k,
         filenames=[filename for filename, _ in filenames_with_scores],
     )
+    
     return torch.from_numpy(caption_embeds).to(device)
