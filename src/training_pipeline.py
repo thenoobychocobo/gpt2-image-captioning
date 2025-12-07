@@ -42,6 +42,8 @@ if __name__ == "__main__":
     EVAL_TEMPERATURE = config['validation']['temperature']  # Greedy
     EVAL_TOP_P = config['validation']['top_p']
 
+    set_seed(config['seed']) 
+    
     # Tokenizer
     gpt2_tokenizer = load_gpt2_tokenizer()
 
