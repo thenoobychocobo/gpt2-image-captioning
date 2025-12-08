@@ -1,6 +1,9 @@
 seed: 42
 max_caption_length: 50
 
+vision_encoder: "clip"
+retrieval_augmentation: false
+
 paths:
   data_dir: "coco_data/"
   embeddings_path: "${paths.data_dir}embeddings/"

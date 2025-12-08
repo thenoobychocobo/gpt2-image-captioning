@@ -9,6 +9,7 @@ from src.dataset import CocoDataset
 from src.models import ImageCaptioningModel, TransformerMappingNetwork, MLPMappingNetwork
 from src.train import train
 from src.utils import load_gpt2_tokenizer, load_config, count_model_parameters
+from src.eval import generate_and_evaluate
 
 CHECKPOINTS_DIR = "checkpoints/"
 
@@ -33,7 +34,7 @@ def update_cfg(base_cfg: DictConfig, updates: dict):
             base_cfg[k] = v
     
 
-def training_pipeline(cfg: DictConfig, checkpoints_dir: str):
+def training_pipeline(cfg: DictConfig, save_dir: str):
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     set_seed(cfg.seed) 
     
@@ -42,7 +43,7 @@ def training_pipeline(cfg: DictConfig, checkpoints_dir: str):
 
     # Training Dataset
     train_dataset = CocoDataset(
-        embeddings_path=cfg.paths.embeddings_path + "train_clip_embeddings.pt",
+        embeddings_path=cfg.paths.embeddings_path + f"train_{cfg.vision_encoder}_embeddings.pt",
         annotations_path=cfg.paths.annotations_path + "captions_train2017.json",
         tokenizer=gpt2_tokenizer,
         max_length=cfg.max_caption_length,
@@ -51,7 +52,7 @@ def training_pipeline(cfg: DictConfig, checkpoints_dir: str):
 
     # Validation Dataset
     val_dataset = CocoDataset(
-        embeddings_path=cfg.paths.embeddings_path + "val_clip_embeddings.pt",
+        embeddings_path=cfg.paths.embeddings_path + f"val_{cfg.vision_encoder}_embeddings.pt",
         annotations_path=cfg.paths.annotations_path + "captions_val2017.json",
         tokenizer=gpt2_tokenizer,
         max_length=cfg.max_caption_length,
@@ -95,7 +96,7 @@ def training_pipeline(cfg: DictConfig, checkpoints_dir: str):
         num_warmup_steps=cfg.training.num_warmup_steps,
         save_every_epoch=cfg.training.save_every_epoch,
         device=DEVICE,
-        outputs_dir=checkpoints_dir,
+        outputs_dir=save_dir,
         # Eval params
         val_dataset=val_dataset,
         val_annotations_path=cfg.paths.annotations_path + "captions_val2017.json",
@@ -111,13 +112,34 @@ def training_pipeline(cfg: DictConfig, checkpoints_dir: str):
     )
 
     print(train_history)
-    return model
+    return model, gpt2_tokenizer
 
 def set_up(name: str) -> str:
     # make new directory if not exists
     dir_path = os.path.join(CHECKPOINTS_DIR, name)
     os.makedirs(dir_path, exist_ok=True)
     return dir_path
+
+def testing_pipeline(cfg: DictConfig, model: ImageCaptioningModel, tokenizer: GPT2Tokenizer, save_dir: str):
+    # Test Dataset (Using validation 2014 as test set)
+    test_dataset = CocoDataset(
+        embeddings_path=cfg.paths.embeddings_path + f"test_{cfg.vision_encoder}_embeddings.pt",
+        annotations_path=cfg.paths.annotations_path + "captions_val2014.json",
+        tokenizer=tokenizer,
+        max_length=cfg.max_caption_length,
+        normalize_embeddings=False,
+    )
+
+    predictions, metrics =  generate_and_evaluate(model=model,
+                          dataset=test_dataset,
+                          annotations_path=cfg.paths.annotations_path + "captions_val2014.json",
+                          batch_size=cfg.validation.batch_size,
+                          max_length=cfg.max_caption_length,
+                          temperature=cfg.validation.temperature,
+                          top_p=cfg.validation.top_p,
+                          device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+                          output_dir=save_dir)
+    return predictions, metrics
 
 if __name__ == "__main__":
     logger.info("Starting automated training...")
@@ -142,7 +164,11 @@ if __name__ == "__main__":
 
         # Track the model training time
         start_time = time.time()
-        model = training_pipeline(cfg, save_dir)
+        if cfg.retrieval_augmentation:
+            #TODO: Implement RAT training pipeline
+            pass
+        else:
+            model, tokenizer = training_pipeline(cfg, save_dir) 
         end_time = time.time()
         training_duration = end_time - start_time # currently in seconds
         training_duration_str = time.strftime("%H:%M:%S", time.gmtime(training_duration))
@@ -158,4 +184,20 @@ if __name__ == "__main__":
             f.write(f"Trainable Parameters: {trainable_params}\n")
             f.write(f"Total Parameters: {total_params}\n")
 
-        # TODO: Evaluation
+        # Evaluate on test set
+        logger.info(f"Starting evaluation for model {cfg_idx}...")
+        if cfg.retrieval_augmentation:
+            #TODO: Implement RAT evaluation pipeline
+            pass
+        else:
+            predictions, metrics = testing_pipeline(cfg, model, tokenizer, save_dir)
+        
+        # Save predictions and metrics
+        with open(os.path.join(save_dir, f"test_predictions_{cfg_idx}.txt"), "w") as f:
+            json.dump(predictions, f)
+        with open(os.path.join(save_dir, f"test_metrics_{cfg_idx}.txt"), "w") as f:
+            f.write(str(metrics))
+        logger.info(f"Evaluation completed for model {cfg_idx}. Metrics saved.")
+        
+    logger.info("All model trainings and evaluations completed.")
+    logger.info("Exiting...")
