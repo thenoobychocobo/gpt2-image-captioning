@@ -1,7 +1,5 @@
 import gc
 import os
-import faiss
-import pickle
 
 import numpy as np
 import torch
