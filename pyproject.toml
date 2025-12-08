@@ -12,6 +12,7 @@ dependencies = [
     "pycocoevalcap>=1.2",
     "faiss-cpu>=1.13.1",
     "objectbox>=4.0.0",
+    "omegaconf>=2.3.0",
 ]
 
 [dependency-groups]
