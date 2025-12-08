@@ -105,11 +105,28 @@ coco_data/
 └── test2017
 ```
 
-### Extracting Image Embeddings
+## Usage
 
-**Section is WIP**
+### Extracting Image Embeddings (Vision Encoder)
 
 Refer to the `extract_clip_embeddings.ipynb` Jupyter notebook to extract image embeddings using the CLIP model.
+We currently have code for extracting image embeddings using three different Vision Encoders: (1) [CLIP](#clip); (2) [ViT](#vit); and (3) [DINOv3](#dinov3) (with `dino.txt` adapters).
+
+#### CLIP
+
+CLIP is a multimodal vision and language model that unifies image and text representations into a shared embedding space. We specifically use the CLIP image encoder as the Vision Encoder to extract image embeddings.
+
+#### ViT
+
+WIP
+
+#### DINOv3
+
+[DINOv3](https://github.com/facebookresearch/dinov3) is a state-of-the-art vision transformer model developed by Meta AI. It is designed to learn visual representations in a self-supervised manner, enabling it to perform well on various computer vision tasks without requiring large amounts of labeled data. 
+
+To use DINOv3 as the vision encoder, we utilize the `dino.txt` adapters, which are lightweight modules that can be added on top of the pre-trained DINOv3 model to for text alignment.
+
+First, head to this [link](https://ai.meta.com/resources/models-and-libraries/dinov3-downloads/) and request access to the DINOv3 models and adapters. Once you have access, you will be sent an email containing the download links to all pretrained DINOv3 models. Download the `dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth` model (backbone) and the `dinov3_vitl16_dinotxt_vision_head_and_text_encoder-a442d8f5.pth` (`dino.txt` text-alignment adapters) and place them in a directory of your choice.
 
 ## Methodology
 
