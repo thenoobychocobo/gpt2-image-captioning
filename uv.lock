@@ -771,7 +771,9 @@ name = "gpt2-image-captioning"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "faiss-cpu" },
     { name = "matplotlib" },
+    { name = "objectbox" },
     { name = "pycocoevalcap" },
     { name = "torch", version = "2.9.1", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'linux' and sys_platform != 'win32'" },
     { name = "torch", version = "2.9.1+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
@@ -790,17 +792,15 @@ dinov3 = [
     { name = "termcolor" },
     { name = "torchmetrics" },
 ]
-rat = [
-    { name = "faiss-cpu" },
-    { name = "objectbox" },
-]
 visualization = [
     { name = "fiftyone" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "faiss-cpu", specifier = ">=1.13.1" },
     { name = "matplotlib", specifier = ">=3.10.7" },
+    { name = "objectbox", specifier = ">=4.0.0" },
     { name = "pycocoevalcap", specifier = ">=1.2" },
     { name = "torch", marker = "sys_platform != 'linux' and sys_platform != 'win32'", specifier = ">=2.9.1" },
     { name = "torch", marker = "sys_platform == 'linux' or sys_platform == 'win32'", specifier = ">=2.9.1", index = "https://download.pytorch.org/whl/cu128" },
@@ -818,10 +818,7 @@ dinov3 = [
     { name = "termcolor", specifier = ">=3.2.0" },
     { name = "torchmetrics", specifier = ">=1.8.2" },
 ]
-rat = [
-    { name = "faiss-cpu", specifier = ">=1.13.1" },
-    { name = "objectbox", specifier = ">=4.0.0" },
-]
+rat = []
 visualization = [{ name = "fiftyone", specifier = ">=1.11.0" }]
 
 [[package]]
