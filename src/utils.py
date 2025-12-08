@@ -1,7 +1,7 @@
 import os
-import yaml
 
 import matplotlib.pyplot as plt
+import yaml
 from PIL import Image
 from torch.utils.data import Dataset
 from transformers import GPT2Tokenizer
@@ -170,6 +170,7 @@ class ImageDirectoryDataset(Dataset):
         # zip(*batch) unzips [(f1, img1), (f2, img2)] into [(f1, f2), (img1, img2)]
         batch_filenames, batch_images = zip(*batch)
         return list(batch_filenames), list(batch_images)
+
 
 def load_config(path: str = "config.yml"):
     with open(path, "r") as f:

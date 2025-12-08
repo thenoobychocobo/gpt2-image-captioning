@@ -21,6 +21,7 @@ OBJECTBOX_MODEL.entity(Caption)
 # 5 GB size limit for the database
 DATABASE_SIZE_LIMIT_KB = 1024 * 1024 * 5
 
+
 def create_objectbox_store(
     db_directory: str,
     clear_db: bool = False,

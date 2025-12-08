@@ -6,44 +6,46 @@ from transformers import set_seed
 from src.dataset import CocoDataset
 from src.models import ImageCaptioningModel, TransformerMappingNetwork
 from src.train import train
-from src.utils import load_gpt2_tokenizer, load_config
+from src.utils import load_config, load_gpt2_tokenizer
 
 if __name__ == "__main__":
     config = load_config("config.yml")
 
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    EMBEDDINGS_PATH = config['paths']['embeddings_path']
-    ANNOTATIONS_PATH = config['paths']['annotations_path']
-    CHECKPOINTS_PATH = config['paths']['checkpoints_path']
-    MAX_CAPTION_LENGTH = config['max_caption_length']
+    EMBEDDINGS_PATH = config["paths"]["embeddings_path"]
+    ANNOTATIONS_PATH = config["paths"]["annotations_path"]
+    CHECKPOINTS_PATH = config["paths"]["checkpoints_path"]
+    MAX_CAPTION_LENGTH = config["max_caption_length"]
 
     # Transformer Mapping Network Params
-    EMBED_DIM = config['mapping_network']['embed_dim']  # Embedding dimension
-    GPT_DIM = config['mapping_network']['gpt_dim']  # GPT-2 embedding dimension
-    PREFIX_LENGTH = config['mapping_network']['prefix_length']  # Length of the prefix
-    HIDDEN_LENGTH = config['mapping_network']['hidden_length']
+    EMBED_DIM = config["mapping_network"]["embed_dim"]  # Embedding dimension
+    GPT_DIM = config["mapping_network"]["gpt_dim"]  # GPT-2 embedding dimension
+    PREFIX_LENGTH = config["mapping_network"]["prefix_length"]  # Length of the prefix
+    HIDDEN_LENGTH = config["mapping_network"]["hidden_length"]
 
     # Image Captioning Model Params
-    FREEZE_GPT_WEIGHTS = config['image_captioning']['freeze_gpt_weights']  # Whether to fine-tune GPT-2 alongside the mapping network
-    PREFIX_TASK_PROMPT: str | None = config['image_captioning']['prefix_task_prompt']
+    FREEZE_GPT_WEIGHTS = config["image_captioning"][
+        "freeze_gpt_weights"
+    ]  # Whether to fine-tune GPT-2 alongside the mapping network
+    PREFIX_TASK_PROMPT: str | None = config["image_captioning"]["prefix_task_prompt"]
 
     # Training Params
-    TRAIN_BATCH_SIZE = config['training']['batch_size']
-    NUM_EPOCHS = config['training']['num_epochs']
-    NUM_WORKERS = config['training']['num_workers']
-    LEARNING_RATE = config['training']['learning_rate']
-    NUM_WARMUP_STEPS = config['training']['num_warmup_steps']
-    SAVE_EVERY_EPOCH = config['training']['save_every_epoch']
+    TRAIN_BATCH_SIZE = config["training"]["batch_size"]
+    NUM_EPOCHS = config["training"]["num_epochs"]
+    NUM_WORKERS = config["training"]["num_workers"]
+    LEARNING_RATE = config["training"]["learning_rate"]
+    NUM_WARMUP_STEPS = config["training"]["num_warmup_steps"]
+    SAVE_EVERY_EPOCH = config["training"]["save_every_epoch"]
 
     # Validation Params
-    EVAL_EVERY_EPOCH = config['validation']['eval_every_epoch']
-    EVAL_BATCH_SIZE = config['validation']['batch_size']
+    EVAL_EVERY_EPOCH = config["validation"]["eval_every_epoch"]
+    EVAL_BATCH_SIZE = config["validation"]["batch_size"]
     EVAL_MAX_CAPTION_LENGTH = MAX_CAPTION_LENGTH
-    EVAL_TEMPERATURE = config['validation']['temperature']  # Greedy
-    EVAL_TOP_P = config['validation']['top_p']
+    EVAL_TEMPERATURE = config["validation"]["temperature"]  # Greedy
+    EVAL_TOP_P = config["validation"]["top_p"]
 
-    set_seed(config['seed']) 
-    
+    set_seed(config["seed"])
+
     # Tokenizer
     gpt2_tokenizer = load_gpt2_tokenizer()
 

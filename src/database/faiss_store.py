@@ -12,6 +12,7 @@ from typing import Optional
 import faiss
 import numpy as np
 
+
 class FAISSStore:
     """
     Wrapper class for FAISS indices and metadata.
@@ -34,7 +35,9 @@ class FAISSStore:
         self.image_index = image_index
         self.caption_index = caption_index
         self.image_metadata = image_metadata  # List of filenames
-        self.caption_metadata = caption_metadata  # List of dicts with filename, caption_id
+        self.caption_metadata = (
+            caption_metadata  # List of dicts with filename, caption_id
+        )
 
         # Create reverse lookup: filename -> list of caption indices
         self.filename_to_caption_indices = {}
@@ -66,6 +69,7 @@ def create_faiss_store(
     """
     if clear_db and os.path.exists(db_directory):
         import shutil
+
         shutil.rmtree(db_directory)
         os.makedirs(db_directory)
         return None
@@ -78,7 +82,12 @@ def create_faiss_store(
 
     if not all(
         os.path.exists(p)
-        for p in [image_index_path, caption_index_path, image_meta_path, caption_meta_path]
+        for p in [
+            image_index_path,
+            caption_index_path,
+            image_meta_path,
+            caption_meta_path,
+        ]
     ):
         return None
 
@@ -106,8 +115,12 @@ def save_faiss_store(store: FAISSStore, db_directory: str) -> None:
     os.makedirs(db_directory, exist_ok=True)
 
     # Save indices
-    faiss.write_index(store.image_index, os.path.join(db_directory, "image_index.faiss"))
-    faiss.write_index(store.caption_index, os.path.join(db_directory, "caption_index.faiss"))
+    faiss.write_index(
+        store.image_index, os.path.join(db_directory, "image_index.faiss")
+    )
+    faiss.write_index(
+        store.caption_index, os.path.join(db_directory, "caption_index.faiss")
+    )
 
     # Save metadata
     with open(os.path.join(db_directory, "image_metadata.pkl"), "wb") as f:
@@ -117,9 +130,7 @@ def save_faiss_store(store: FAISSStore, db_directory: str) -> None:
 
 
 def retrieve_images_by_vector_similarity(
-    faiss_store: FAISSStore, 
-    query_embedding_vectors: np.ndarray, 
-    top_i: int
+    faiss_store: FAISSStore, query_embedding_vectors: np.ndarray, top_i: int
 ) -> list[list[tuple[str, float]]]:
     """
     Retrieve images via batch similarity search using query image embedding vectors.
@@ -144,11 +155,11 @@ def retrieve_images_by_vector_similarity(
     )
 
     batch_results = []
-    
+
     # Process each query's results
     for batch_idx in range(len(query_embedding_vectors)):
         query_results = []
-        
+
         for dist, idx in zip(distances[batch_idx], indices[batch_idx]):
             # Skip invalid indices
             if idx == -1:
@@ -168,17 +179,17 @@ def retrieve_images_by_vector_similarity(
 
             if len(query_results) >= top_i:
                 break
-        
+
         batch_results.append(query_results)
 
     return batch_results
 
 
 def get_caption_embeddings(
-    faiss_store: FAISSStore, 
-    top_k: int, 
-    batch_filenames: list[list[str]], 
-    embed_dim: int = 512
+    faiss_store: FAISSStore,
+    top_k: int,
+    batch_filenames: list[list[str]],
+    embed_dim: int = 512,
 ) -> np.ndarray:
     """
     Given batch of filename lists, retrieve caption embeddings and return exactly top_k captions per query.
@@ -209,7 +220,9 @@ def get_caption_embeddings(
 
         # Handle empty case
         if not all_caption_indices:
-            batch_caption_embeddings.append(np.zeros((top_k, embed_dim), dtype=np.float32))
+            batch_caption_embeddings.append(
+                np.zeros((top_k, embed_dim), dtype=np.float32)
+            )
             continue
 
         # Take first top_k caption indices
@@ -233,4 +246,6 @@ def get_caption_embeddings(
         batch_caption_embeddings.append(caption_embeddings)
 
     # Stack into batch
-    return np.array(batch_caption_embeddings, dtype=np.float32)  # (batch_size, top_k, embed_dim)
+    return np.array(
+        batch_caption_embeddings, dtype=np.float32
+    )  # (batch_size, top_k, embed_dim)

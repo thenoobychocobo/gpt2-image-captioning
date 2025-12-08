@@ -16,6 +16,7 @@ log_dir = "logs"
 os.makedirs(log_dir, exist_ok=True)
 writer = SummaryWriter(log_dir=log_dir)
 
+
 def train(
     train_dataset: CocoDataset,
     model: ImageCaptioningModel,
@@ -479,4 +480,3 @@ def train_rat(
         "best_val_cider": best_val_cider,
         "best_epoch": best_epoch,
     }
-

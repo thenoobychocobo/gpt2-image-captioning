@@ -33,7 +33,7 @@ def run_faiss_indexing_pipeline(
         image_embedding_file_path (str): Path to image embeddings .pt file.
         caption_embedding_file_path (str): Path to caption embeddings .pt file.
         use_approximate (bool): If True, use HNSW approximate search. If False, use exact search.
-        hnsw_m (int): HNSW parameter - number of bidirectional links per node. 
+        hnsw_m (int): HNSW parameter - number of bidirectional links per node.
             Typical: 16-64. Higher = more accurate but slower build & more memory.
         hnsw_efConstruction (int): HNSW parameter - size of dynamic candidate list during construction.
             Typical: 40-500. Higher = better index quality but slower build.
@@ -66,12 +66,14 @@ def run_faiss_indexing_pipeline(
         image_index = faiss.IndexHNSWFlat(embed_dim, hnsw_m, faiss.METRIC_INNER_PRODUCT)
         image_index.hnsw.efConstruction = hnsw_efConstruction
         image_index.hnsw.efSearch = hnsw_efSearch
-        print(f"  Using HNSW with M={hnsw_m}, efConstruction={hnsw_efConstruction}, efSearch={hnsw_efSearch}")
+        print(
+            f"  Using HNSW with M={hnsw_m}, efConstruction={hnsw_efConstruction}, efSearch={hnsw_efSearch}"
+        )
     else:
         # Flat index - Exact but slower search
         image_index = faiss.IndexFlatIP(embed_dim)
         print("  Using Flat (exact search)")
-    
+
     image_index.add(all_image_embeddings)
     print(f"  Indexed {image_index.ntotal} image vectors")
 
@@ -118,14 +120,18 @@ def run_faiss_indexing_pipeline(
     # Create caption FAISS index
     print("Building caption FAISS index...")
     if use_approximate:
-        caption_index = faiss.IndexHNSWFlat(embed_dim, hnsw_m, faiss.METRIC_INNER_PRODUCT)
+        caption_index = faiss.IndexHNSWFlat(
+            embed_dim, hnsw_m, faiss.METRIC_INNER_PRODUCT
+        )
         caption_index.hnsw.efConstruction = hnsw_efConstruction
         caption_index.hnsw.efSearch = hnsw_efSearch
-        print(f"  Using HNSW with M={hnsw_m}, efConstruction={hnsw_efConstruction}, efSearch={hnsw_efSearch}")
+        print(
+            f"  Using HNSW with M={hnsw_m}, efConstruction={hnsw_efConstruction}, efSearch={hnsw_efSearch}"
+        )
     else:
         caption_index = faiss.IndexFlatIP(embed_dim)
         print("  Using Flat (exact search)")
-    
+
     caption_index.add(caption_embeddings)
     print(f"  Indexed {caption_index.ntotal} caption vectors")
 
@@ -152,15 +158,16 @@ def run_faiss_indexing_pipeline(
     print(f"  - Images indexed: {num_images}")
     print(f"  - Captions indexed: {num_captions}")
     print(f"  - Index files saved to: {db_directory}")
-    
+
     if use_approximate:
-        print(f"\nHNSW Parameters:")
+        print("\nHNSW Parameters:")
         print(f"  - M (connections): {hnsw_m}")
         print(f"  - efConstruction: {hnsw_efConstruction}")
         print(f"  - efSearch: {hnsw_efSearch}")
-        print(f"\nNote: You can adjust efSearch later for speed/accuracy trade-off:")
-        print(f"  Lower efSearch → Faster but less accurate")
-        print(f"  Higher efSearch → Slower but more accurate")
+        print("\nNote: You can adjust efSearch later for speed/accuracy trade-off:")
+        print("  Lower efSearch → Faster but less accurate")
+        print("  Higher efSearch → Slower but more accurate")
+
 
 if __name__ == "__main__":
     db_path = "faiss_db"
@@ -172,8 +179,8 @@ if __name__ == "__main__":
         db_directory=db_path,
         image_embedding_file_path="path_to_train_clip_embeddings.pt",
         caption_embedding_file_path="path_to_gpt2-image-captioning/data/data/coco/embeddings/train_caption_embeddings.pt",
-        use_approximate=True,      # Enable HNSW
-        hnsw_m=32,                 # 32 links like in the paper
-        hnsw_efConstruction=200,   # High quality index
-        hnsw_efSearch=64,          # Good search accuracy
+        use_approximate=True,  # Enable HNSW
+        hnsw_m=32,  # 32 links like in the paper
+        hnsw_efConstruction=200,  # High quality index
+        hnsw_efSearch=64,  # Good search accuracy
     )

@@ -10,7 +10,6 @@ import json
 import os
 
 import fiftyone as fo
-from fiftyone import ViewField as F
 
 
 def create_captioning_dataset(
@@ -93,6 +92,7 @@ def create_captioning_dataset(
     print(f"Created FiftyOne dataset '{dataset_name}' with {len(samples)} samples")
     return dataset
 
+
 def launch_app(
     dataset: fo.Dataset | fo.DatasetView,
     port: int = 5151,
@@ -119,4 +119,3 @@ def launch_app(
         session.wait()
 
     return session
-

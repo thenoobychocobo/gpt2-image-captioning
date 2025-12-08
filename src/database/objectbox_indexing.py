@@ -6,8 +6,8 @@ import torch
 from objectbox import Box
 from tqdm import tqdm
 
-from src.database.entities import Caption, Image
 from database.objectbox_store import create_objectbox_store
+from src.database.entities import Caption, Image
 
 
 def safe_put(box: Box, entities: list, chunk_size: int = 9000):
@@ -137,10 +137,11 @@ def run_objectbox_indexing_pipeline(
     db_store.close()
     print("Indexing pipeline complete!")
 
+
 # EXAMPLE USAGE
 if __name__ == "__main__":
     db_path = "vector_db"
-    
+
     if not os.path.exists(db_path):
         os.makedirs(db_path)
 
