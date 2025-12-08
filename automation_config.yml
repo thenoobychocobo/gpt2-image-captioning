@@ -1,27 +1,26 @@
 model:
   1:
-    description: "A base model configuration"
-    # model params here (follow same structure)
-    paths:
-      embeddings_path: "${.data_dir}embeddings/"
-    # path:
-    #   embeddings_path: "${paths.data_dir}coco_embeddings/"
+    description: "Transformer Mapping with image prefix length 10"
   2:
+    description: "Transformer Mapping with image prefix length 5"
     # model params here (follow same structure)
-    seed: 1234
+    mapping:
+      prefix_length: 5
+  3:
+    description: "Transformer Mapping with image prefix length 15"
+    mapping:
+      prefix_length: 15
+  4:
+    description: "MLP Mappping with image prefix length 10"
     mapping:
       type: "mlp"
-  3:
-    validation:
-      temperature: 0.7
-      top_p: 0.8
-    # model params here (follow same structure)
-  4:
-    image_captioning:
-      freeze_gpt_weights: false
-    # model params here
-  5:  
-    training:
-      learning_rate: !!float 5e-5
-      num_epochs: 10
-    # model params here (follow same structure)
+  5:
+    description: "MLP Mappping with image prefix length 5"
+    mapping:
+      type: "mlp"
+      prefix_length: 5
+  6:
+    description: "MLP Mappping with image prefix length 15"
+    mapping:
+      type: "mlp"
+      prefix_length: 15

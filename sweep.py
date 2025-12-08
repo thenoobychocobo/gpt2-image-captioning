@@ -1,13 +1,14 @@
 import os
+import time
 from omegaconf import DictConfig, OmegaConf
 import torch
 from transformers import set_seed
 import logging
 
-# from src.dataset import CocoDataset
-# from src.models import ImageCaptioningModel, TransformerMappingNetwork, MLPMappingNetwork
-# from src.train import train
-from src.utils import load_gpt2_tokenizer, load_config
+from src.dataset import CocoDataset
+from src.models import ImageCaptioningModel, TransformerMappingNetwork, MLPMappingNetwork
+from src.train import train
+from src.utils import load_gpt2_tokenizer, load_config, count_model_parameters
 
 CHECKPOINTS_DIR = "checkpoints/"
 
@@ -139,6 +140,22 @@ if __name__ == "__main__":
         with open(os.path.join(save_dir, f"config_{cfg_idx}.yml"), "w") as f:
             OmegaConf.save(cfg, f)
 
+        # Track the model training time
+        start_time = time.time()
         model = training_pipeline(cfg, save_dir)
-        
-        #TODO: Evaluation
+        end_time = time.time()
+        training_duration = end_time - start_time # currently in seconds
+        training_duration_str = time.strftime("%H:%M:%S", time.gmtime(training_duration))
+        logger.info(f"Training completed in {training_duration_str} for model {cfg_idx}")
+
+        # Count number of model parameters
+        trainable_params, total_params = count_model_parameters(model)
+        logger.info(f"Model parameters for model {cfg_idx}: Trainable={trainable_params}, Total={total_params}")
+
+        # Save training duration and parameter counts to a txt file
+        with open(os.path.join(save_dir, f"training_info_{cfg_idx}.txt"), "w") as f:
+            f.write(f"Training Duration (seconds): {training_duration:.2f}\n")
+            f.write(f"Trainable Parameters: {trainable_params}\n")
+            f.write(f"Total Parameters: {total_params}\n")
+
+        # TODO: Evaluation
