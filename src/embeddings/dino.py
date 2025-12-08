@@ -1,12 +1,12 @@
 import os
 import torch
 import torchvision.transforms.v2 as v2
-from typing import Literal, Sequence, Any
-from PIL import Image
+from typing import Literal, Sequence
+import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-import torch
+from src.utils import ImageDirectoryDataset
 
 WEIGHTS_FILE = "dinov3_vitl16_dinotxt_vision_head_and_text_encoder-a442d8f5.pth"
 BACKBONE_WEIGHTS_FILE = "dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth"
@@ -68,7 +68,7 @@ def load_dinov3_models(
             f"Could not find '{BACKBONE_WEIGHTS_FILE}' in directory '{model_weights_dir}'"
         )
 
-    # Load DINOv3 txt model from repositroy
+    # Load DINOv3 txt model from repository
     model, tokenizer = torch.hub.load(
         repo_or_dir,
         "dinov3_vitl16_dinotxt_tet1280d20h24l",
