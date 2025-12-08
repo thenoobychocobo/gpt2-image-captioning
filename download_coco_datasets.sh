@@ -42,7 +42,7 @@ echo "--- Starting Image Downloads (Backgrounded)... ---"
 # use curl if wget is not available
 download "$DATA_DIR" http://images.cocodataset.org/zips/train2017.zip &
 download "$DATA_DIR" http://images.cocodataset.org/zips/val2017.zip &
-download "$DATA_DIR" http://images.cocodataset.org/zips/test2017.zip &
+download "$DATA_DIR" http://images.cocodataset.org/zips/val2014.zip & # We use val2014 as the test set
 
 # Wait ensures the script pauses here until ALL background downloads above finish.
 wait 
@@ -54,7 +54,7 @@ echo "--- Image Downloads Complete. Starting Unzip... ---"
 # -q : Quiet mode for unzip so file lists don't flood the terminal.
 unzip "$DATA_DIR/train2017.zip" -d "$DATA_DIR" &
 unzip "$DATA_DIR/val2017.zip" -d "$DATA_DIR" &
-unzip "$DATA_DIR/test2017.zip" -d "$DATA_DIR" &
+unzip "$DATA_DIR/val2014.zip" -d "$DATA_DIR" &
 
 wait
 echo "--- Image Unzip Complete. Cleaning up... ---"
@@ -62,7 +62,7 @@ echo "--- Image Unzip Complete. Cleaning up... ---"
 
 # === 4. Cleanup (remove zip files) ===
 
-rm "$DATA_DIR/train2017.zip" "$DATA_DIR/val2017.zip" "$DATA_DIR/test2017.zip"
+rm "$DATA_DIR/train2017.zip" "$DATA_DIR/val2017.zip" "$DATA_DIR/val2014.zip"
 
 
 # === 5. Download Annotations (Parallel) ===
@@ -70,7 +70,7 @@ rm "$DATA_DIR/train2017.zip" "$DATA_DIR/val2017.zip" "$DATA_DIR/test2017.zip"
 echo "--- Starting Annotation Downloads ---"
 
 download "$DATA_DIR" http://images.cocodataset.org/annotations/annotations_trainval2017.zip &
-download "$DATA_DIR" http://images.cocodataset.org/annotations/image_info_test2017.zip &
+download "$DATA_DIR" http://images.cocodataset.org/annotations/annotations_trainval2014.zip &
 
 wait
 echo "--- Annotation Downloads Complete. Starting Unzip... ---"
@@ -79,7 +79,7 @@ echo "--- Annotation Downloads Complete. Starting Unzip... ---"
 # === 6. Unzip Annotations ===
 
 unzip "$DATA_DIR/annotations_trainval2017.zip" -d "$DATA_DIR" &
-unzip "$DATA_DIR/image_info_test2017.zip" -d "$DATA_DIR" &
+unzip "$DATA_DIR/annotations_trainval2014.zip" -d "$DATA_DIR" &
 
 wait
 echo "--- Annotation Unzip Complete. Cleaning up... ---"
@@ -87,6 +87,6 @@ echo "--- Annotation Unzip Complete. Cleaning up... ---"
 
 # === 7. Cleanup (Remove zip files) ===
 
-rm "$DATA_DIR/annotations_trainval2017.zip" "$DATA_DIR/image_info_test2017.zip"
+rm "$DATA_DIR/annotations_trainval2017.zip" "$DATA_DIR/annotations_trainval2014.zip"
 
 echo "--- All tasks finished successfully. ---"
