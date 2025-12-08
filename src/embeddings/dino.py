@@ -76,15 +76,7 @@ def load_dinov3_models(
     
     return model.to(device), tokenizer 
 
-    # tokenized_texts_tensor = tokenizer.tokenize(texts).cuda()
-    # with torch.autocast('cuda', dtype=torch.float):
-    #     with torch.no_grad():
-    #         image_features = model.encode_image(image_tensor)
-    #         text_features = model.encode_text(tokenized_texts_tensor)
-    #     # image_features /= image_features.norm(dim=-1, keepdim=True)
-    #     # text_features /= text_features.norm(dim=-1, keepdim=True)
-
-# why do i directlt copy the code for preprocessor from the repo? because the torch.hub.load does not help on getting it, it only helps on getting the model and tokenizer.
+# why do i directly copy the code for preprocessor from the repo? because the torch.hub.load does not help on getting it, it only helps on getting the model and tokenizer.
 # if can find another way to get the preprocessor from the repo, then can replace all these code
 def make_eval_transform(
     *,
@@ -135,9 +127,8 @@ def get_dinov3_preprocessor(
 def extract_dino_embeddings(
     image_dir: str,
     output_path: str,
-    # TODO: change any to proper types
-    dino_model: Any,
-    dino_processor: Any,
+    dino_model: torch.nn.Module,
+    dino_processor: v2.Compose,
     batch_size: int = 32,
     num_workers: int = 4,
     device: torch.device | None = None,
@@ -181,8 +172,6 @@ def extract_dino_embeddings(
 if __name__ == "__main__":
     # Device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    # TODO: replace the paths below with real ones
     dino_model, _ = load_dinov3_models(model_weights_dir="dino_weights", device=device)
     dino_processor = get_dinov3_preprocessor()
 
