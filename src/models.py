@@ -7,7 +7,7 @@ from torch.nn import functional as F
 from transformers import GPT2LMHeadModel, GPT2Tokenizer
 from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions
 
-from database import objectbox_store
+from src.database import objectbox_store
 from src.database import faiss_store
 from src.utils import load_gpt2_tokenizer
 
