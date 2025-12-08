@@ -3,6 +3,7 @@ import os
 import matplotlib.pyplot as plt
 import yaml
 from PIL import Image
+import torch.nn as nn
 from torch.utils.data import Dataset
 from transformers import GPT2Tokenizer
 
@@ -177,3 +178,18 @@ def load_config(path: str = "config.yml"):
         config = yaml.safe_load(f)
 
     return config
+
+def count_model_parameters(model: nn.Module) -> tuple[int, int]:
+    """Count the number of trainable and total parameters in a PyTorch model.
+
+    Args:
+        model (nn.Module): The PyTorch model.
+    Returns:
+        tuple[int, int]: A tuple containing the number of trainable parameters and total parameters.
+    """
+
+    trainable_params = sum(
+        p.numel() for p in model.parameters() if p.requires_grad
+    )
+    total_params = sum(p.numel() for p in model.parameters())
+    return trainable_params, total_params
