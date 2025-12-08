@@ -248,7 +248,7 @@ def generate_and_evaluate_rat(
     This is for the Retrieval-Augmented Transformer (RAT) model.
 
     Args:
-        model: The trained ImageCaptioningModel.
+        model: The trained Retrieval-Augmented Transformer .
         dataset: CocoDataset instance to evaluate on.
         annotations_path: Path to ground truth annotations JSON.
         batch_size: Batch size for generation.

@@ -7,7 +7,8 @@ from torch.nn import functional as F
 from transformers import GPT2LMHeadModel, GPT2Tokenizer
 from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions
 
-from src.database import image_store, faiss_store
+from database import objectbox_store
+from src.database import faiss_store
 from src.utils import load_gpt2_tokenizer
 
 
@@ -673,7 +674,7 @@ class RetrievalAugmentedTransformer(ImageCaptioningModel):
         is_faiss = hasattr(db_store, 'image_index')
 
         if is_faiss:
-            # FAISS: Native batch search (MUCH faster!)
+            # FAISS: Native batch search
             query_vectors = image_embeddings.cpu().numpy().astype('float32')
             
             # Batch similarity search
@@ -702,7 +703,7 @@ class RetrievalAugmentedTransformer(ImageCaptioningModel):
             with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
                 futures = [
                     executor.submit(
-                        image_store.retrieve_for_single_embedding,
+                        objectbox_store.retrieve_for_single_embedding,
                         image_embeddings[i : i + 1],
                         db_store,
                         top_i,
@@ -781,35 +782,3 @@ class RetrievalAugmentedTransformer(ImageCaptioningModel):
             generated_ids,
             skip_special_tokens=True,  # Strips away special tokens like <eos>
         )
-
-    def save_parameters(self, output_path: str) -> None:
-        """
-        Saves all model parameters and buffers except for the GPT-2 weights if they are frozen.
-        If GPT-2 weights are not frozen, all parameters are saved.
-        Use the `load_partial_state_dict` method to load these parameters back into the model.
-
-        Args:
-            output_path (str): The file path to save the trainable parameters.
-        """
-        # Get all trainable parameter names
-        trainable_param_names = {
-            name for name, param in self.named_parameters() if param.requires_grad
-        }
-
-        # Filter state dict to include only:
-        # 1. Trainable parameters (already in trainable_param_names set)
-        # 2. Buffers (e.g., running mean/var in BatchNorm layers) belonging to trainable modules
-        # We are essentially saving everything except for GPT-2 weights if they are frozen.
-        keys_to_save = {}
-
-        for name, param in self.state_dict().items():
-            if name in trainable_param_names:
-                keys_to_save[name] = param
-            # If we froze GPT, we will save everything NOT inside 'gpt'
-            elif not name.startswith("gpt."):
-                keys_to_save[name] = param
-
-        print(
-            f"Saving {len(keys_to_save)} trainable parameters and buffers to {output_path}."
-        )
-        torch.save(keys_to_save, output_path)

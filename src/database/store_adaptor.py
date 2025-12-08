@@ -5,10 +5,11 @@ Adapters to make ObjectBox and FAISS stores conform to the VectorStore protocol.
 
 import numpy as np
 import torch
+from database import objectbox_store
 from objectbox import Store
 
 from src.database.faiss_store import FAISSStore
-from src.database import image_store, faiss_store
+from src.database import faiss_store
 
 
 class ObjectBoxStoreAdapter:
@@ -23,14 +24,14 @@ class ObjectBoxStoreAdapter:
     def retrieve_images_by_vector_similarity(
         self, query_embedding_vector: np.ndarray, top_i: int
     ) -> list[tuple[str, float]]:
-        return image_store.retrieve_images_by_vector_similarity(
+        return objectbox_store.retrieve_images_by_vector_similarity(
             self.store, query_embedding_vector, top_i
         )
     
     def get_caption_embeddings(
         self, top_k: int, filenames: list[str], embed_dim: int = 512
     ) -> np.ndarray:
-        return image_store.get_caption_embeddings(
+        return objectbox_store.get_caption_embeddings(
             self.store, top_k, filenames, embed_dim
         )
     
@@ -41,7 +42,7 @@ class ObjectBoxStoreAdapter:
         top_k: int,
         device: torch.device,
     ) -> torch.Tensor:
-        return image_store.retrieve_for_single_embedding(
+        return objectbox_store.retrieve_for_single_embedding(
             single_embedding, self.store, top_i, top_k, device
         )
 
@@ -103,7 +104,7 @@ def create_vector_store(
         return FAISSStoreAdapter(store)
     
     elif backend.lower() == "objectbox":
-        from src.database.image_store import create_objectbox_store
+        from database.objectbox_store import create_objectbox_store
         store = create_objectbox_store(db_directory, clear_db)
         return ObjectBoxStoreAdapter(store)
     

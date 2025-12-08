@@ -16,6 +16,12 @@ class FAISSStore:
     """
     Wrapper class for FAISS indices and metadata.
     Provides similar interface to ObjectBox Store for easy replacement.
+
+    Attributes:
+        image_index (faiss.Index): FAISS index for image embeddings.
+        caption_index (faiss.Index): FAISS index for caption embeddings.
+        image_metadata (list[str]): List of image filenames corresponding to image_index.
+        caption_metadata (list[dict]): List of dicts with caption metadata corresponding to caption_index.
     """
 
     def __init__(
@@ -186,7 +192,6 @@ def get_caption_embeddings(
     Returns:
         np.ndarray: Array of shape (batch_size, top_k, embed_dim) containing caption embeddings.
     """
-    batch_size = len(batch_filenames)
     batch_caption_embeddings = []
 
     for filenames in batch_filenames:

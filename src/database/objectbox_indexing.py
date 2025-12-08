@@ -9,7 +9,7 @@ from objectbox import Box
 from tqdm import tqdm
 
 from src.database.entities import Caption, Image
-from src.database.image_store import create_objectbox_store
+from database.objectbox_store import create_objectbox_store
 
 
 def safe_put(box: Box, entities: list, chunk_size: int = 9000):
@@ -28,7 +28,7 @@ def safe_put(box: Box, entities: list, chunk_size: int = 9000):
             box.put(entities[i : i + chunk_size])
 
 
-def run_indexing_pipeline(
+def run_objectbox_indexing_pipeline(
     db_directory: str,
     image_embedding_file_path: str,
     caption_embedding_file_path: str,
@@ -146,7 +146,7 @@ if __name__ == "__main__":
     if not os.path.exists(db_path):
         os.makedirs(db_path)
 
-    run_indexing_pipeline(
+    run_objectbox_indexing_pipeline(
         db_directory=db_path,
         image_embedding_file_path="path_to_train_clip_embeddings.pt",
         caption_embedding_file_path="path_to_train_caption_embeddings.pts",
