@@ -2,7 +2,6 @@ import os
 from typing import Any
 
 import torch
-from objectbox import Store
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
@@ -256,7 +255,7 @@ def train(
 def train_rat(
     train_dataset: CocoDataset,
     model: RetrievalAugmentedTransformer,
-    db_store: Store,
+    db_store,
     top_k: int,
     top_i: int,
     batch_size: int,
@@ -283,7 +282,7 @@ def train_rat(
     Args:
         train_dataset (CocoDataset): The training dataset.
         model (RetrievalAugmentedTransformer): The model to be trained.
-        db_store (Store): The ObjectBox store for retrieval.
+        db_store: The vector store for retrieval.
         top_k (int): The number of top similar images to retrieve from the database.
         top_i (int): The number of top captions to retrieve for each image.
         batch_size (int): The batch size for training.
