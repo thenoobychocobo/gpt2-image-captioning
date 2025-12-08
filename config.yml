@@ -3,9 +3,9 @@ max_caption_length: 50
 
 paths:
   data_dir: "coco_data/"
-  embeddings_path: "coco_data/embeddings/"
-  annotations_path: "coco_data/annotations/"
-  checkpoints_path: "checkpoints/"
+  embeddings_path: "${data_dir}embeddings/"
+  annotations_path: "${data_dir}annotations/"
+  checkpoints_path: "${data_dir}checkpoints/"
 
 mapping_network:
   embed_dim: 512

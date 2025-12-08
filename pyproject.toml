@@ -11,14 +11,13 @@ dependencies = [
     "torchvision>=0.24.1",
     "transformers>=4.57.3",
     "pycocoevalcap>=1.2",
-    "fiftyone>=1.2.0",      # TODO: Fairly heavy, consider making it optional (separate dependency group)
 ]
 
 [dependency-groups]
 dev = ["ipykernel>=7.1.0", "ruff>=0.14.6"]
-dinov3 = [
-    "termcolor>=3.2.0",
-    "torchmetrics>=1.8.2",
+dinov3 = ["termcolor>=3.2.0", "torchmetrics>=1.8.2"]
+visualization = [
+    "fiftyone>=1.11.0",
 ]
 
 # Ruff (formatting and linting) configuration
