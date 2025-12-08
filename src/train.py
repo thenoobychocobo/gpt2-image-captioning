@@ -2,7 +2,9 @@ import os
 from typing import Any
 
 import torch
+from objectbox import Store
 from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from transformers import get_linear_schedule_with_warmup
 
@@ -11,6 +13,9 @@ from src.eval import evaluate_epoch, evaluate_rat_epoch, save_eval_summary
 from src.models import ImageCaptioningModel, RetrievalAugmentedTransformer
 from src.utils import save_eval_metric_curves, save_loss_curves
 
+log_dir = "logs"
+os.makedirs(log_dir, exist_ok=True)
+writer = SummaryWriter(log_dir=log_dir)
 
 def train(
     train_dataset: CocoDataset,
@@ -196,6 +201,11 @@ def train(
                 }
                 val_metrics_history.append(val_metrics_dict)
 
+                writer.add_scalar("CIDEr/val", val_metrics.cider, epoch + 1)
+                writer.add_scalar("BLEU-1/val", val_metrics.bleu_1, epoch + 1)
+                writer.add_scalar("BLEU-4/val", val_metrics.bleu_4, epoch + 1)
+                writer.add_scalar("ROUGE-L/val", val_metrics.rouge_l, epoch + 1)
+
                 # Track best model by CIDEr score
                 if val_metrics.cider > best_val_cider:
                     best_val_cider = val_metrics.cider
@@ -227,6 +237,8 @@ def train(
             title="Validation Metrics Over Epochs",
         )
 
+    writer.close()
+
     # Print final summary
     print("\n" + "=" * 60)
     print("Training complete.")
@@ -244,7 +256,7 @@ def train(
 def train_rat(
     train_dataset: CocoDataset,
     model: RetrievalAugmentedTransformer,
-    db_store,
+    db_store: Store,
     top_k: int,
     top_i: int,
     batch_size: int,
@@ -468,3 +480,4 @@ def train_rat(
         "best_val_cider": best_val_cider,
         "best_epoch": best_epoch,
     }
+
