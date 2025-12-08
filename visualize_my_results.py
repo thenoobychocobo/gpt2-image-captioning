@@ -16,7 +16,7 @@ dataset = create_captioning_dataset(
     images_dir="data/coco/val2017",
     predictions_path="sample_output/results.json",
     annotations_path="data/coco/annotations/captions_val2017.json",
-    dataset_name="my_captions",$
+    dataset_name="my_captions",
     overwrite=True,
 )
 
