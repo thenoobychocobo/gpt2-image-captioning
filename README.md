@@ -128,6 +128,11 @@ To use DINOv3 as the vision encoder, we utilize the `dino.txt` adapters, which a
 
 First, head to this [link](https://ai.meta.com/resources/models-and-libraries/dinov3-downloads/) and request access to the DINOv3 models and adapters. Once you have access, you will be sent an email containing the download links to all pretrained DINOv3 models. Download the `dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth` model (backbone) and the `dinov3_vitl16_dinotxt_vision_head_and_text_encoder-a442d8f5.pth` (`dino.txt` text-alignment adapters) and place them in a directory of your choice.
 
+Then update your virtual environment to include the additional dependencies required for DINOv3:
+```bash
+uv sync --group dinov3
+```
+
 ## Methodology
 
 **Section is WIP**
