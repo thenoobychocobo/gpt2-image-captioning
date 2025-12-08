@@ -1,8 +1,7 @@
 import os
 import torch
 import torchvision.transforms.v2 as v2
-from typing import Literal, Sequence, Any
-from PIL import Image
+from typing import Literal, Sequence
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
