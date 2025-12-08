@@ -1,7 +1,6 @@
 import json
 
 import torch
-from objectbox import Store
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -85,7 +84,7 @@ def generate_test_caption_predictions(
 
 def generate_test_caption_predictions_rat(
     model: RetrievalAugmentedTransformer,
-    db_store: Store,
+    db_store,
     top_k: int,
     top_i: int,
     test_dataset: CocoDataset,
@@ -102,7 +101,7 @@ def generate_test_caption_predictions_rat(
 
     Args:
         model (RetrievalAugmentedTransformer): The trained captioning model.
-        db_store (Store): The ObjectBox store containing the image and caption embeddings.
+        db_store: The vector db store containing the image and caption embeddings.
         top_k (int): The number of top similar images to retrieve from the database.
         top_i (int): The number of top captions to retrieve from the database.
         test_dataset (CocoDataset): The test dataset containing images and metadata.
