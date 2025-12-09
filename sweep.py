@@ -181,24 +181,10 @@ if __name__ == "__main__":
 
         # Save training duration and parameter counts to a txt file
         with open(os.path.join(save_dir, f"training_info_{cfg_idx}.txt"), "w") as f:
-            f.write(f"Training Duration (seconds): {train_val_duration:.2f}\n")
+            f.write(f"Training and Validation Duration (seconds): {train_val_duration_str}\n")
             f.write(f"Trainable Parameters: {trainable_params}\n")
             f.write(f"Total Parameters: {total_params}\n")
-
-        # Evaluate on test set
-        logger.info(f"Starting evaluation for model {cfg_idx}...")
-        if cfg.retrieval_augmentation:
-            #TODO: Implement RAT evaluation pipeline
-            pass
-        else:
-            predictions, metrics = testing_pipeline(cfg, model, tokenizer, save_dir)
-        
-        # Save predictions and metrics
-        with open(os.path.join(save_dir, f"test_predictions_{cfg_idx}.txt"), "w") as f:
-            json.dump(predictions, f)
-        with open(os.path.join(save_dir, f"test_metrics_{cfg_idx}.txt"), "w") as f:
-            f.write(str(metrics))
-        logger.info(f"Evaluation completed for model {cfg_idx}. Metrics saved.")
+    
 
     logger.info("All model trainings and evaluations completed.")
     logger.info("Exiting...")
