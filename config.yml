@@ -15,7 +15,7 @@ mapping:
   type: "transformer"
   embed_dim: 512
   gpt_dim: 768
-  prefix_length: 10
+  prefix_length: 15
   hidden_length: 10
 
 image_captioning:
