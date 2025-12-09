@@ -13,10 +13,15 @@ dependencies = [
     "faiss-cpu>=1.13.1",
     "objectbox>=4.0.0",
     "omegaconf>=2.3.0",
+    "tensorboard>=2.20.0",
 ]
 
 [dependency-groups]
-dev = ["ipykernel>=7.1.0", "ruff>=0.14.6"]
+dev = [
+    "ipykernel>=7.1.0",
+    "ruff>=0.14.6",
+    "vastai>=0.2.8",
+]
 dinov3 = ["termcolor>=3.2.0", "torchmetrics>=1.8.2"]
 visualization = ["fiftyone>=1.11.0"]
 

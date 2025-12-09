@@ -205,6 +205,7 @@ def train(
                 writer.add_scalar("BLEU-1/val", val_metrics.bleu_1, epoch + 1)
                 writer.add_scalar("BLEU-4/val", val_metrics.bleu_4, epoch + 1)
                 writer.add_scalar("ROUGE-L/val", val_metrics.rouge_l, epoch + 1)
+                # writer.add_scalar("METEOR/val", val_metrics.meteor, epoch + 1)
 
                 # Track best model by CIDEr score
                 if val_metrics.cider > best_val_cider:

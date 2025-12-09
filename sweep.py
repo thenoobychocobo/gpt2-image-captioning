@@ -1,9 +1,10 @@
 import os
 import time
+import json
+import logging
 from omegaconf import DictConfig, OmegaConf
 import torch
-from transformers import set_seed
-import logging
+from transformers import set_seed, GPT2Tokenizer
 
 from src.dataset import CocoDataset
 from src.models import ImageCaptioningModel, TransformerMappingNetwork, MLPMappingNetwork
@@ -11,13 +12,14 @@ from src.train import train
 from src.utils import load_gpt2_tokenizer, load_config, count_model_parameters
 from src.eval import generate_and_evaluate
 
+# Configure logging BEFORE creating loggers
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', force=True)
+logger = logging.getLogger(__name__)
+
 CHECKPOINTS_DIR = "checkpoints/"
 
 # Load base configuration and automation updates configurations
 updates = load_config("automation_config.yml")
-
-logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
 
 def update_cfg(base_cfg: DictConfig, updates: dict):
     """
@@ -150,7 +152,6 @@ if __name__ == "__main__":
     for i, cfg_idx in enumerate(updates_cfg.keys()):
         logger.info(f"Processing model {i+1}/{len(updates_cfg)}: {cfg_idx}")
         cfg = OmegaConf.load("config.yml")
-        cfg_dict = OmegaConf.to_container(cfg, resolve=True)
         current_cfg_dict = updates_cfg[cfg_idx]
         save_dir = set_up(f"checkpoint_{cfg_idx}")
 
@@ -170,9 +171,9 @@ if __name__ == "__main__":
         else:
             model, tokenizer = training_pipeline(cfg, save_dir) 
         end_time = time.time()
-        training_duration = end_time - start_time # currently in seconds
-        training_duration_str = time.strftime("%H:%M:%S", time.gmtime(training_duration))
-        logger.info(f"Training completed in {training_duration_str} for model {cfg_idx}")
+        train_val_duration = end_time - start_time # currently in seconds
+        train_val_duration_str = time.strftime("%H:%M:%S", time.gmtime(train_val_duration))
+        logger.info(f"Training and validation completed in {train_val_duration_str} for model {cfg_idx}")
 
         # Count number of model parameters
         trainable_params, total_params = count_model_parameters(model)
@@ -180,7 +181,7 @@ if __name__ == "__main__":
 
         # Save training duration and parameter counts to a txt file
         with open(os.path.join(save_dir, f"training_info_{cfg_idx}.txt"), "w") as f:
-            f.write(f"Training Duration (seconds): {training_duration:.2f}\n")
+            f.write(f"Training Duration (seconds): {train_val_duration:.2f}\n")
             f.write(f"Trainable Parameters: {trainable_params}\n")
             f.write(f"Total Parameters: {total_params}\n")
 
@@ -198,6 +199,6 @@ if __name__ == "__main__":
         with open(os.path.join(save_dir, f"test_metrics_{cfg_idx}.txt"), "w") as f:
             f.write(str(metrics))
         logger.info(f"Evaluation completed for model {cfg_idx}. Metrics saved.")
-        
+
     logger.info("All model trainings and evaluations completed.")
     logger.info("Exiting...")

@@ -17,7 +17,7 @@ from typing import Any
 import torch
 from pycocoevalcap.bleu.bleu import Bleu
 from pycocoevalcap.cider.cider import Cider
-from pycocoevalcap.meteor.meteor import Meteor
+# from pycocoevalcap.meteor.meteor import Meteor
 from pycocoevalcap.rouge.rouge import Rouge
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -31,7 +31,7 @@ class EvalMetrics:
     bleu_2: float
     bleu_3: float
     bleu_4: float
-    meteor: float
+    # meteor: float
     rouge_l: float
     cider: float
 
@@ -41,7 +41,7 @@ class EvalMetrics:
             "BLEU-2": self.bleu_2,
             "BLEU-3": self.bleu_3,
             "BLEU-4": self.bleu_4,
-            "METEOR": self.meteor,
+            # "METEOR": self.meteor,
             "ROUGE-L": self.rouge_l,
             "CIDEr": self.cider,
         }
@@ -50,7 +50,7 @@ class EvalMetrics:
         return (
             f"BLEU-1: {self.bleu_1:.4f} | BLEU-2: {self.bleu_2:.4f} | "
             f"BLEU-3: {self.bleu_3:.4f} | BLEU-4: {self.bleu_4:.4f} | "
-            f"METEOR: {self.meteor:.4f} |"
+            # f"METEOR: {self.meteor:.4f} |"
             f"ROUGE-L: {self.rouge_l:.4f} | CIDEr: {self.cider:.4f}"
         )
 
@@ -80,7 +80,7 @@ def compute_caption_metrics(
     # Initialize scorers
     scorers = [
         (Bleu(4), ["BLEU-1", "BLEU-2", "BLEU-3", "BLEU-4"]),
-        (Meteor(), "METEOR"),
+        # (Meteor(), "METEOR"),
         (Rouge(), "ROUGE-L"),
         (Cider(), "CIDEr"),
     ]
@@ -101,7 +101,7 @@ def compute_caption_metrics(
         bleu_2=results["BLEU-2"],
         bleu_3=results["BLEU-3"],
         bleu_4=results["BLEU-4"],
-        meteor=results["METEOR"],
+        # meteor=results["METEOR"],
         rouge_l=results["ROUGE-L"],
         cider=results["CIDEr"],
     )
