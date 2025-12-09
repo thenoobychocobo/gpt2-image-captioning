@@ -777,7 +777,7 @@ class RetrievalAugmentedTransformer(ImageCaptioningModel):
         Convenience method to generate and decode strings directly.
         """
         generated_ids = self.generate(
-            image_embeddings, db_store, top_k, top_i, **kwargs
+            db_store, top_k, top_i, image_embeddings, **kwargs
         )
         return self.tokenizer.batch_decode(
             generated_ids,
