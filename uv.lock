@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.13"
 resolution-markers = [
     "(platform_machine != 'aarch64' and sys_platform == 'linux') or sys_platform == 'win32'",
@@ -807,6 +807,7 @@ dev = [
     { name = "vastai" },
 ]
 dinov3 = [
+    { name = "ftfy" },
     { name = "termcolor" },
     { name = "torchmetrics" },
 ]
@@ -836,6 +837,7 @@ dev = [
     { name = "vastai", specifier = ">=0.2.8" },
 ]
 dinov3 = [
+    { name = "ftfy", specifier = ">=6.3.1" },
     { name = "termcolor", specifier = ">=3.2.0" },
     { name = "torchmetrics", specifier = ">=1.8.2" },
 ]
