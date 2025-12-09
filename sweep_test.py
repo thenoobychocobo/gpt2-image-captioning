@@ -69,7 +69,7 @@ if __name__ == "__main__":
         if cfg.mapping.type == "transformer":
             params["hidden_length"] = cfg.mapping.hidden_length
             mapping_network = TransformerMappingNetwork(**params)
-        elif cfg.mapping_type == "mlp":
+        elif cfg.mapping.type == "mlp":
             mapping_network = MLPMappingNetwork(**params)
         else:
             raise ValueError(f"Unknown mapping network type: {cfg.mapping.type}")
