@@ -9,6 +9,7 @@ paths:
   embeddings_path: "${paths.data_dir}embeddings/"
   annotations_path: "${paths.data_dir}annotations/"
   checkpoints_path: "${paths.data_dir}checkpoints/"
+  vector_db_path: "${paths.data_dir}faiss_db/"
 
 mapping:
   type: "transformer"
@@ -21,8 +22,14 @@ image_captioning:
   freeze_gpt_weights: true
   prefix_task_prompt: null
 
+retrieval: # For Retrieval Augmented Training (RAT)
+  top_k: 10
+  top_i: 4
+  aggregation_type: "mean"
+  embed_dim: 512
+
 training:
-  batch_size: 32
+  batch_size: 128
   num_epochs: 3
   num_workers: 4
   learning_rate: !!float 1.0e-4
@@ -31,6 +38,6 @@ training:
 
 validation:
   eval_every_epoch: 1
-  batch_size: 32
+  batch_size: 128
   temperature: 0.0
   top_p: 0.9
