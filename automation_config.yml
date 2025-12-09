@@ -1,18 +1,42 @@
 # Defaults: CLIP, Transformer Mapper with image prefix length 15, frozen GPT-2
 
 model:
-  1:
+  # Retrieval Augmented Training (RAT) Experiments
+  7:
+    description: "CLIP + RAT (k=10, mean-pooling) + Transformer Mapping (image prefix length 15)"
+    retrieval_augmentation: true
+  8:
+    description: "CLIP + RAT (k=10, attention-aggregation) + Transformer Mapping (image prefix length 15)"
+    retrieval_augmentation: true
+    retrieval:
+      aggregation_type: "attention"
+  9:
+    description: "CLIP + RAT (k=10, mean-pooling) + Transformer Mapping (image prefix length 15) + Fine-tune GPT"
+    retrieval_augmentation: true
+    image_captioning:
+      freeze_gpt_weights: false
+  10:
+    description: "CLIP + RAT (k=10, attention-aggregation) + Transformer Mapping (image prefix length 15) + Fine-tune GPT"
+    retrieval_augmentation: true
+    retrieval:
+      aggregation_type: "attention"
+    image_captioning:
+      freeze_gpt_weights: false
+  # TODO: Vary k in RAT experiments
+
+  # Baseline + Fine-tune
+  11:
     description: "CLIP + Transformer Mapping (image prefix length 15) + Fine-tune GPT"
     image_captioning:
       freeze_gpt_weights: false
   
   # DINOv3 Experiments
-  2:
+  12:
     description: "DINOv3 + Transformer Mapping (image prefix length 15)"
     vision_encoder: "dino"
     mapping:
       embed_dim: 2048
-  3:
+  13:
     description: "DINOv3 + Transformer Mapping (image prefix length 15) + Fine-tune GPT"
     vision_encoder: "dino"
     mapping:
@@ -21,48 +45,24 @@ model:
       freeze_gpt_weights: false
   
   # Soft Prompt / Prefix Tuning Experiments
-  4:
+  14:
     description: "CLIP + Transformer Mapping (image prefix length 15) + Short Prompt"
     image_captioning:
       prefix_task_prompt: "Concise descriptive caption:"
-  5:
+  15:
     description: "CLIP + Transformer Mapping (image prefix length 15) + Long Prompt"
     image_captioning:
       prefix_task_prompt: "For the given image, provide a detailed, accurate, yet concise image caption:"
-  6:
+  16:
     description: "CLIP + Transformer Mapping (image prefix length 15) + Short Prompt + Fine-tune GPT"
     image_captioning:
       prefix_task_prompt: "Concise descriptive caption:"
       freeze_gpt_weights: false
-  7:
+  17:
     description: "CLIP + Transformer Mapping (image prefix length 15) + Long Prompt + Fine-tune GPT"
     image_captioning:
       prefix_task_prompt: "For the given image, provide a detailed, accurate, yet concise image caption:"
       freeze_gpt_weights: false
-
-  # Retrieval Augmented Training (RAT) Experiments
-  8:
-    description: "CLIP + RAT (k=10, mean-pooling) + Transformer Mapping (image prefix length 15)"
-    retrieval_augmentation: true
-  9:
-    description: "CLIP + RAT (k=10, attention-aggregation) + Transformer Mapping (image prefix length 15)"
-    retrieval_augmentation: true
-    retrieval:
-      aggregation_type: "attention"
-  10:
-    description: "CLIP + RAT (k=10, mean-pooling) + Transformer Mapping (image prefix length 15) + Fine-tune GPT"
-    retrieval_augmentation: true
-    image_captioning:
-      freeze_gpt_weights: false
-  11:
-    description: "CLIP + RAT (k=10, attention-aggregation) + Transformer Mapping (image prefix length 15) + Fine-tune GPT"
-    retrieval_augmentation: true
-    retrieval:
-      aggregation_type: "attention"
-    image_captioning:
-      freeze_gpt_weights: false
-
-  # TODO: Vary k in RAT experiments
 
     
 
