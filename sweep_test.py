@@ -56,12 +56,33 @@ if __name__ == "__main__":
         best_model_indices = [int(f.split("_")[2].split(".")[0]) for f in best_model_files]
         best_model_index = max(best_model_indices)
 
-        model = ImageCaptioningModel.load_from_checkpoint(
-            os.path.join(checkpoint_dir, f"best_model_{best_model_index}.pt")
-        )
         # Load config
         cfg_idx = _+1
         cfg = OmegaConf.load(os.path.join(checkpoint_dir, f"config_{cfg_idx}.yml"))
+        
+        # Load mapping network from config
+        params = {
+            "embed_dim": cfg.mapping.embed_dim,
+            "gpt_dim": cfg.mapping.gpt_dim,
+            "prefix_length": cfg.mapping.prefix_length,
+        }
+        if cfg.mapping.type == "transformer":
+            params["hidden_length"] = cfg.mapping.hidden_length
+            mapping_network = TransformerMappingNetwork(**params)
+        elif cfg.mapping_type == "mlp":
+            mapping_network = MLPMappingNetwork(**params)
+        else:
+            raise ValueError(f"Unknown mapping network type: {cfg.mapping.type}")
+        
+        # Load model
+        model = ImageCaptioningModel(
+            mapping_network=mapping_network,
+            prefix_task_prompt=cfg.image_captioning.prefix_task_prompt,
+            tokenizer=tokenizer,
+            freeze_gpt_weights=cfg.image_captioning.freeze_gpt_weights,
+        )
+        model.load_saved_parameters(os.path.join(checkpoint_dir, f"best_model_{best_model_index}.pt"))
+
         
         # Evaluate on test set
         logger.info(f"Starting evaluation for model {cfg_idx}...")
