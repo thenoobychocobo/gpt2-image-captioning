@@ -9,7 +9,7 @@ paths:
   embeddings_path: "${paths.data_dir}embeddings/"
   annotations_path: "${paths.data_dir}annotations/"
   checkpoints_path: "${paths.data_dir}checkpoints/"
-  vector_db_path: "${paths.data_dir}faiss_db/"
+  vector_db_path: "faiss_db/"
 
 mapping:
   type: "transformer"
