@@ -1,13 +1,10 @@
-# MacOS
-.DS_Store
-
 # Project specific
 notebooks/examples/ 
 coco_data/
 dino_weights/
-coco_data/
 checkpoints/
 data/
+logs/
 
 # MacOS
 .DS_Store
