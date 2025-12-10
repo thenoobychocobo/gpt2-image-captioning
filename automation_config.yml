@@ -3,13 +3,13 @@
 model:
   # Retrieval Augmented Training (RAT) Experiments
   18:
-    description: "CLIP + RAT (k=20, i=6, mean-pooling) + Transformer Mapping (image prefix length 15) + GPT Fine-tune"
+    description: "CLIP + RAT (k=20, i=6, mean-pooling) + Transformer Mapping (image prefix length 15) + GPT Frozen"
     retrieval_augmentation: true
     retrieval:
       top_k: 20
       top_i: 6
     image_captioning:
-      freeze_gpt_weights: false
+      freeze_gpt_weights: true
   19:
     description: "CLIP + RAT (k=20, i=6, mean-pooling) + Transformer Mapping (image prefix length 15) + GPT Fine-tune"
     retrieval_augmentation: true
